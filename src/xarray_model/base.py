@@ -104,7 +104,31 @@ class BaseModel(ABC):
         return cls.deserialize(json.loads(schema))
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> Self:
-        """Convert a dictionary to this schema."""
-        # Subclasses should normally override this method...
-        return cls(**data)
+    def _conversion_error(
+        cls, data: Any, details: str | None = None
+    ) -> ConversionError:
+        """Create a ConversionError with a standardized message."""
+        message = f'Cannot convert {type(data).__name__} to {cls.__name__}'
+        if details:
+            message += f'. {details}'
+        return ConversionError(message)
+
+    @classmethod
+    def _serialization_error(
+        cls, details: str | None = None
+    ) -> SerializationError:
+        """Create a SerializationError with a standardized message."""
+        message = f'Cannot serialize {cls.__name__}'
+        if details:
+            message += f'. {details}'
+        return SerializationError(message)
+
+    @classmethod
+    def _deserialization_error(
+        cls, data: Any, details: str | None = None
+    ) -> DeserializationError:
+        """Create a DeserializationError with a standardized message."""
+        message = f'Cannot deserialize to {cls.__name__}'
+        if details:
+            message += f'. {details}'
+        return DeserializationError(message)
