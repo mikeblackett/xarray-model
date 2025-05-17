@@ -7,12 +7,13 @@ import numpy as np
 
 from xarray_model.base import (
     BaseModel,
+    ConversionError,
     DeserializationError,
-    ModelError,
     SerializationError,
 )
 from xarray_model.types import (
     AttrType,
+    AttrsType,
     ChunkType,
     ChunksType,
     DimsType,
@@ -64,6 +65,19 @@ class NameModel(BaseModel):
                 raise DeserializationError
         return cls(name=name)
 
+    @classmethod
+    def _convert(cls, data: NameType) -> Self:
+        match data:
+            case str():
+                name = data
+            case re.Pattern():
+                name = data
+            case Sequence():
+                name = tuple(data)
+            case _:
+                raise ConversionError
+        return cls(name=name)
+
     def validate(self, name: Hashable) -> None:
         return super()._validate(instance=name)
 
@@ -79,6 +93,8 @@ class DimsModel(BaseModel):
         An iterable representing the expected names of the array's dimensions.
         The value ``None`` can be used as a wildcard.
     """
+
+    # TODO: (mike) Support dimension name pattern/enum matching?
 
     _title = 'Dims'
     _description = 'Tuple of dimension names associated with this array.'
@@ -101,6 +117,12 @@ class DimsModel(BaseModel):
         except KeyError as error:
             raise DeserializationError from error
         return cls(dims=dims)
+
+    @classmethod
+    def _convert(cls, data: DimsType) -> Self:
+        if not isinstance(data, Sequence):
+            raise ConversionError
+        return cls(dims=data)
 
     def validate(self, dims: tuple[Hashable, ...]) -> None:
         return super()._validate(instance=list(dims))
@@ -140,6 +162,17 @@ class DTypeModel(BaseModel):
 
     def validate(self, dtype: np.dtype) -> None:
         return super()._validate(instance=dtype.name)
+
+    @classmethod
+    def _convert(cls, data: DTypeLike) -> Self:
+        match data:
+            case np.dtype():
+                dtype = data
+            case str():
+                dtype = np.dtype(data)
+            case _:
+                raise ConversionError
+        return cls(dtype=dtype)
 
 
 @dataclass(frozen=True)
@@ -184,6 +217,12 @@ class SizesModel(BaseModel):
     def validate(self, sizes: Mapping[Hashable, int]) -> None:
         return super()._validate(instance=dict(sizes))
 
+    @classmethod
+    def _convert(cls, data: SizesType) -> Self:
+        if not isinstance(data, Mapping):
+            raise ConversionError
+        return cls(sizes=data)
+
 
 @dataclass(frozen=True)
 class _AttrModel(BaseModel):
@@ -213,14 +252,14 @@ class _AttrModel(BaseModel):
         return super()._validate(instance=attr)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any] | None) -> Self:
+    def _convert(cls, data: Mapping[str, Any] | None) -> Self:
         if data is None:
             return cls(attr=None)
         if 'type' in data:
             return cls(attr={'type': data['type']})
         if 'value' in data:
             return cls(attr={'value': data['value']})
-        raise ModelError
+        raise ConversionError
 
 
 @dataclass(frozen=True)
@@ -237,7 +276,7 @@ class AttrsModel(BaseModel):
             self,
             'attrs',
             {
-                key: _AttrModel.from_dict(attr)
+                key: _AttrModel.convert(attr)
                 for key, attr in self.attrs.items()
             },
         )
@@ -259,7 +298,7 @@ class AttrsModel(BaseModel):
     def deserialize(cls, data: Mapping[str, Any]) -> Self:
         try:
             attrs = {
-                key: _AttrModel.from_dict(attr).serialize()
+                key: _AttrModel.convert(attr).serialize()
                 for key, attr in data['properties'].items()
             }
         except KeyError as error:
@@ -274,6 +313,12 @@ class AttrsModel(BaseModel):
 
     def validate(self, attrs: Mapping[str, Any]) -> None:
         return super()._validate(instance=attrs)
+
+    @classmethod
+    def _convert(cls, data: AttrsType) -> Self:
+        if not isinstance(data, Mapping):
+            raise ConversionError
+        return cls(attrs=data)
 
 
 @dataclass(frozen=True)
@@ -314,6 +359,10 @@ class _ChunkModel(BaseModel):
     def validate(self, value: Sequence[int]) -> None:
         return super()._validate(instance=value)
 
+    @classmethod
+    def _convert(cls, data: ChunkType) -> Self:
+        return cls(chunk=data)
+
 
 @dataclass(frozen=True)
 class ChunksModel(BaseModel):
@@ -353,7 +402,7 @@ class ChunksModel(BaseModel):
                 chunks = False
             case {'properties': Mapping()}:
                 chunks = {
-                    key: _ChunkModel.from_dict(chunk).serialize()
+                    key: _ChunkModel.convert(chunk).serialize()
                     for key, chunk in data['properties'].items()
                 }
             case _:
@@ -366,3 +415,9 @@ class ChunksModel(BaseModel):
 
     def validate(self, chunksizes: Mapping[Any, tuple[int, ...]]) -> None:
         return super()._validate(instance=dict(chunksizes))
+
+    @classmethod
+    def _convert(cls, data: ChunksType) -> Self:
+        if not isinstance(data, Mapping):
+            raise ConversionError
+        return cls(chunks=data)

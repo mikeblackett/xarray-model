@@ -18,6 +18,10 @@ class ModelError(Exception):
     ...
 
 
+class ConversionError(ModelError):
+    """Raised when conversion fails."""
+
+
 class SerializationError(ModelError):
     """Raised when serialization fails."""
 
@@ -80,11 +84,15 @@ class BaseModel(ABC):
         ...
 
     @classmethod
+    @abstractmethod
+    def _convert(cls, data: Any) -> Self: ...
+
+    @classmethod
     def convert(cls, data: Any) -> Self:
-        """Convert ``data`` to this schema."""
+        """Attempt to convert ``data`` to this schema."""
         if isinstance(data, cls):
             return data
-        return cls.from_dict(data)
+        return cls._convert(data)
 
     def to_json_schema(self) -> str:
         """Return the schema as a JSON string."""
