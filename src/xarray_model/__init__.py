@@ -1,13 +1,13 @@
 from .components import (
     AttrsModel,
     ChunksModel,
-    DTypeModel,
     DimsModel,
+    DTypeModel,
     NameModel,
     SizesModel,
 )
-
 from .data_array import CoordsModel, DataArrayModel
+from .dataset import DatasetModel, DataVariablesModel
 
 __all__ = [
     'AttrsModel',
@@ -15,6 +15,8 @@ __all__ = [
     'CoordsModel',
     'DTypeModel',
     'DataArrayModel',
+    'DatasetModel',
+    'DataVariablesModel',
     'DimsModel',
     'NameModel',
     'SizesModel',
