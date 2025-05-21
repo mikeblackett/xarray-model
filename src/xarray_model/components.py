@@ -25,37 +25,7 @@ __all__ = [
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Component(ABC):
-    """Base class for components of a xarray schema."""
-
-    title: str | None
-    description: str | None
-
-    @cached_property
-    @abstractmethod
-    def schema(self) -> dict[str, Any]:
-        return {
-            'title': self.title,
-            'description': self.description,
-        }
-
-    @classmethod
-    @abstractmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self: ...
-
-    def __repr__(self):
-        # Override repr to show only non-default arguments.
-        args = [
-            (f.name, getattr(self, f.name))
-            for f in fields(self)
-            if getattr(self, f.name) != f.default
-        ]
-        args_string = ''.join(f'{name}={value}' for name, value in args)
-        return f'{self.__class__.__name__}({args_string!r})'
-
-
-@dataclass(frozen=True, kw_only=True, repr=False)
-class Shape(Component):
+class Shape(Base):
     shape: Sequence[int | None] = field(kw_only=False)
     title: str | None = 'Array shape'
     description: str | None = 'Tuple of array dimensions.'
@@ -89,7 +59,8 @@ class Shape(Component):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Datatype(Component):
+class Datatype(Base):
+    # TODO: (mike) support numpy subdytpes
     dtype: DTypeLike = field(kw_only=False)
     title: str | None = 'Array dtype'
     description: str | None = 'Data-type of the array’s elements.'
@@ -104,7 +75,7 @@ class Datatype(Component):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Name(Component):
+class Name(Base):
     name: str = field(kw_only=False)
     regex: bool = False
     title: str | None = 'Array name'
@@ -127,7 +98,7 @@ class Name(Component):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Dims(Component):
+class Dims(Base):
     names: Sequence['Name']
     title: str | None = 'Dimension names'
     description: str | None = (
@@ -157,7 +128,7 @@ class Dims(Component):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Attr(Component):
+class Attr(Base):
     name: str
     regex: bool = False
     value: Any | None = None
@@ -182,7 +153,7 @@ class Attr(Component):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Attrs(Component):
+class Attrs(Base):
     attrs: Iterable[Attr] = field(kw_only=False)
     allow_extra_keys: bool = True
 

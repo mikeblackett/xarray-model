@@ -21,39 +21,7 @@ DIALECT = 'https://json-schema.org/draft/2020-12/schema'
 
 
 @dataclass(frozen=True, kw_only=True)
-class Container(Component):
-    """Base class for JSON schema xarray models."""
-
-    # Class variables
-    _dialect: ClassVar[str] = DIALECT
-    _type: ClassVar[JSONDataType]
-    _validator: ClassVar = jsonschema.Draft7Validator
-
-    @cached_property
-    def validator(self):
-        """The validator for this schema."""
-        return jsonschema.Draft7Validator(schema=self.schema)
-
-    def _validate(self, instance: Any) -> None:
-        return self.validator.validate(instance=instance)
-
-    @abstractmethod
-    def validate(self, *args, **kwargs) -> None:
-        """Validate an object against this schema."""
-        ...
-
-    def to_json(self) -> str:
-        """Return the schema as a JSON string."""
-        return json.dumps(self.schema)
-
-    @classmethod
-    def from_json(cls, schema: str) -> Self:
-        """Instantiate this model from a JSON string."""
-        return cls.from_schema(**json.loads(schema))
-
-
-@dataclass(frozen=True, kw_only=True)
-class DataArraySchema(Container):
+class DataArraySchema(Base):
     title: str | None = 'xarray DataArray'
     description: str | None = (
         'N-dimensional array with labeled coordinates and dimensions.'
