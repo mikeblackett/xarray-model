@@ -1,18 +1,6 @@
-from collections.abc import Iterable, Mapping, Sequence
-import re
-from typing import Any, Literal
-from numpy.typing import DTypeLike
+from typing import Literal
 
-__all__ = [
-    'AttrType',
-    'AttrsType',
-    'DimsType',
-    'DTypeLike',
-    'SizesType',
-    'ChunkType',
-    'ChunksType',
-    'NameType',
-]
+__all__ = ['JSONDataType']
 
 type JSONDataType = Literal[
     'array',
@@ -25,10 +13,3 @@ type JSONDataType = Literal[
     'pattern',
     'string',
 ]
-type NameType = str | Sequence[str] | re.Pattern[str]
-type DimsType = Iterable[str | None]
-type SizesType = Mapping[str, int | None]
-type ChunkType = bool | int | Sequence[int]
-type ChunksType = bool | Mapping[str, ChunkType]
-type AttrType = Mapping[str, Any] | None
-type AttrsType = Mapping[str, AttrType]

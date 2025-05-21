@@ -1,17 +1,18 @@
-from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from dataclasses import dataclass, field, fields
+from collections.abc import Sequence, Hashable, Mapping
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Iterable, Self
+from typing import Any, Iterable
 
 from numpy.typing import DTypeLike
-
+from xarray_model.base import Base
 from xarray_model.serializers import (
     ConstSerializer,
-    DeserializationError,
-    IntegerSerializer,
+    Serializer,
     StringSerializer,
-    TypeSerializer, ArraySerializer,
+    TypeSerializer,
+    ArraySerializer,
+    IntegerSerializer,
+    ObjectSerializer,
 )
 
 __all__ = [
@@ -31,31 +32,18 @@ class Shape(Base):
     description: str | None = 'Tuple of array dimensions.'
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
-        return super().schema | ArraySerializer(prefix_items=[
-            ConstSerializer(size)
-            if size
-            else IntegerSerializer()
-            for size in self.shape
-        ]).serialize()
-        # return {
-        #     **super().schema,
-        #     'type': 'array',
-        #     'prefixItems': [
-        #         ConstSerializer(size).serialize()
-        #         if size
-        #         else IntegerSerializer().serialize()
-        #         for size in self.shape
-        #     ],
-        # }
+    def serializer(self) -> Serializer:
+        return ArraySerializer(
+            title=self.title,
+            description=self.description,
+            prefix_items=[
+                ConstSerializer(size) if size else IntegerSerializer()
+                for size in self.shape
+            ],
+        )
 
-    @classmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self:
-        match data:
-            case {'prefixItems': list()}:
-                return cls(shape=[])
-            case _:
-                raise ValueError('Invalid dimensions')
+    def validate(self, shape: tuple[int]) -> None:
+        return super()._validate(instance=(list(shape)))
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -66,12 +54,15 @@ class Datatype(Base):
     description: str | None = 'Data-type of the array’s elements.'
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
-        return super().schema | ConstSerializer(self.dtype).serialize()
+    def serializer(self) -> Serializer:
+        return ConstSerializer(
+            title=self.title,
+            description=self.description,
+            const=self.dtype,
+        )
 
-    @classmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self:
-        return ConstSerializer.deserialize(**data)
+    def validate(self, dtype: DTypeLike) -> None:
+        return super()._validate(instance=dtype)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -82,19 +73,21 @@ class Name(Base):
     description: str | None = 'The name of this array.'
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
-        result = super().schema
+    def serializer(self) -> Serializer:
         if self.regex:
-            return result | StringSerializer(self.name).serialize()
-        return result | ConstSerializer(self.name).serialize()
+            return StringSerializer(
+                title=self.title,
+                description=self.description,
+                pattern=self.name,
+            )
+        return ConstSerializer(
+            title=self.title,
+            description=self.description,
+            const=self.name,
+        )
 
-    @classmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self:
-        try:
-            kwargs = StringSerializer.deserialize(**data)
-        except DeserializationError:
-            kwargs = ConstSerializer.deserialize(**data)
-        return cls(**kwargs)
+    def validate(self, name: str) -> None:
+        return super()._validate(instance=name)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -106,25 +99,15 @@ class Dims(Base):
     )
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
-        return {
-            **super().schema,
-            'type': 'array',
-            'prefixItems': [name.schema for name in self.names],
-        }
+    def serializer(self) -> Serializer:
+        return ArraySerializer(
+            title=self.title,
+            description=self.description,
+            prefix_items=[name.serializer for name in self.names],
+        )
 
-    @classmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self:
-        match data:
-            case {'prefixItems': list()}:
-                return cls(
-                    names=[
-                        Name.from_schema(**item)
-                        for item in data['prefixItems']
-                    ]
-                )
-            case _:
-                raise ValueError('Invalid dimensions')
+    def validate(self, dims: tuple[Hashable]) -> None:
+        return super()._validate(instance=list(dims))
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -137,19 +120,16 @@ class Attr(Base):
     title: str | None = 'Attr'
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
+    def serializer(self) -> Serializer:
         if isinstance(self.value, type):
-            print(self.value)
-            return TypeSerializer(self.value).serialize()
-        return ConstSerializer(self.value).serialize()
+            return TypeSerializer(self.value)
+        return ConstSerializer(self.value)
 
-    @classmethod
-    def from_schema(cls, data: dict[str, Any]) -> Self:
-        try:
-            kwargs = StringSerializer.deserialize(**data)
-        except DeserializationError:
-            kwargs = ConstSerializer.deserialize(**data)
-        return cls(**kwargs)
+    def validate(self, attr) -> None:
+        raise NotImplementedError(
+            'Attr is not meant to be validated in isolation. '
+            'You should compose it inside the Attrs schema.'
+        )
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -163,34 +143,25 @@ class Attrs(Base):
     )
 
     @cached_property
-    def _required(self):
-        return [
-            attr.name
-            for attr in self.attrs
-            if attr.required and not attr.regex
-        ]
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            title=self.title,
+            description=self.description,
+            properties={
+                attr.name: attr.serializer
+                for attr in self.attrs
+                if not attr.regex
+            },
+            pattern_properties={
+                attr.name: attr.serializer for attr in self.attrs if attr.regex
+            },
+            required=[
+                attr.name
+                for attr in self.attrs
+                if attr.required and not attr.regex
+            ],
+            additional_properties=self.allow_extra_keys,
+        )
 
-    @cached_property
-    def _properties(self) -> dict[str, Any]:
-        return {
-            attr.name: attr.schema for attr in self.attrs if not attr.regex
-        }
-
-    @cached_property
-    def _pattern_properties(self) -> dict[str, Any]:
-        return {attr.name: attr.schema for attr in self.attrs if attr.regex}
-
-    @cached_property
-    def schema(self) -> dict[str, Any]:
-        schema = {**super().schema, 'type': 'object'}
-        if self._properties:
-            schema |= {'properties': self._properties}
-        if self._pattern_properties:
-            schema |= {'patternProperties': self._pattern_properties}
-        if self._required:
-            schema |= {'required': self._required}
-        schema |= {'additionalProperties': self.allow_extra_keys}
-        return schema
-
-    @classmethod
-    def from_schema(cls, **kwargs) -> Self: ...
+    def validate(self, attrs: Mapping[str, Any]) -> None:
+        return super()._validate(instance=attrs)
