@@ -1,165 +1,173 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field, fields
 from re import Pattern
-from typing import Any, Type
+from typing import Any, Self, Type
 
-from xarray_model.encoding import decode_type, encode_type, encode_value
+from xarray_model.encoding import (
+    encode_value,
+    encode_keyword,
+    decode_keyword,
+    encode_type,
+    decode_type,
+)
+
+__all__ = [
+    'AnnotationSerializer',
+    'ArraySerializer',
+    'BooleanSerializer',
+    'ConstSerializer',
+    'DeserializationError',
+    'IntegerSerializer',
+    'NumberSerializer',
+    'ObjectSerializer',
+    'SerializationError',
+    'Serializer',
+    'StringSerializer',
+    'TypeSerializer',
+    'as_schema',
+]
 
 
 class SerializationError(Exception):
     """Raised when serialization fails."""
 
-    ...
+    def __init__(self, message: str):
+        super().__init__(message)
 
 
 class DeserializationError(Exception):
     """Raised when deserialization fails."""
 
-    ...
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
+def as_schema(obj: 'Serializer') -> dict:
+    return asdict(obj, dict_factory=_schema_factory)
 
 
 @dataclass(frozen=True)
-class Serializer[T](ABC):
-    @abstractmethod
-    def serialize(self) -> dict[str, Any]: ...
-
-    @classmethod
-    @abstractmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> Any: ...
-
-
-@dataclass(frozen=True)
-class StringSerializer(Serializer):
-    pattern: str | Pattern[str] | None = None
+class Serializer(ABC):
+    title: str | None = None
+    description: str | None = None
 
     def serialize(self) -> dict[str, Any]:
-        print(self._serialize())
-        result = {'type': 'string'}
-        if self.pattern is None:
-            return result
-        try:
-            result |= {'pattern': encode_value(self.pattern)}
-        except TypeError as error:
-            raise SerializationError from error
+        return as_schema(self)
 
     @classmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> dict[str, Any]:
-        match obj:
-            case {'pattern': str()}:
-                return {'pattern': kwargs['pattern']}
-        raise DeserializationError
+    def from_schema(cls, obj: Mapping[str, Any]) -> Self:
+        kwargs = {
+            decode_keyword(f.name): _decode_json_value(
+                obj.get(encode_keyword(f.name))
+            )
+            for f in fields(cls)
+            if f.init
+        }
+        return cls(**kwargs)
+
+    def __repr__(self):
+        # repr signature with only non-default arguments
+        args = [
+            (f.name, getattr(self, f.name))
+            for f in fields(self)
+            if getattr(self, f.name) != f.default and f.init
+        ]
+        args_string = ', '.join(f'{name}={value}' for name, value in args)
+        return f'{self.__class__.__name__}({args_string})'
 
 
-@dataclass(frozen=True)
-class AnnotationSerializer(Serializer):
-    title: str | None
-    description: str | None
-
-    def serialize(self) -> dict[str, Any]:
-        result = {}
-        if self.title is not None:
-            result |= {'title': self.title}
-        if self.description is not None:
-            result |= {'description': self.description}
-        return result
+@dataclass(frozen=True, kw_only=True, repr=False)
+class ObjectSerializer(Serializer):
+    type: str = field(default='object', init=False)
+    properties: Mapping[str, Serializer] | None = None
+    pattern_properties: Mapping[str, Serializer] | None = None
+    additional_properties: Serializer | bool | None = None
+    min_properties: int | None = None
+    max_properties: int | None = None
+    required: Iterable[str] | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True, repr=False)
 class ArraySerializer(Serializer):
-    items: Serializer | None = None
+    type: str = field(default='array', init=False)
+    items: Serializer | bool | None = None
     prefix_items: Iterable[Serializer] | None = None
     min_items: int | None = None
     max_items: int | None = None
 
-    def serialize(self) -> dict[str, Any]:
-        result = {'type': 'array'}
-        if self.min_items is not None:
-            result |= {'minItems': self.min_items}
-        if self.max_items is not None:
-            result |= {'maxItems': self.max_items}
-        if self.prefix_items:
-            result |= {
-                'prefixItems': [item.serialize() for item in self.prefix_items]
-            }
-        if self.items:
-            result |= {'items': self.items.serialize()}
-        return result
 
-    @classmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> Any: ...
+@dataclass(frozen=True, kw_only=True, repr=False)
+class StringSerializer(Serializer):
+    type: str = field(default='string', init=False)
+    pattern: str | Pattern[str] | None = None
+    min_length: int | None = None
+    max_length: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True, repr=False)
 class IntegerSerializer(Serializer):
+    type: str = field(default='integer', init=False)
     minimum: int | None = None
     maximum: int | None = None
-
-    def serialize(self) -> dict[str, Any]:
-        result = {'type': 'integer'}
-        if self.minimum is not None:
-            result |= {'minimum': self.minimum}
-        if self.maximum is not None:
-            result |= {'maximum': self.maximum}
-        return result
-
-    @classmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> dict[str, Any]:
-        try:
-            assert obj['type'] == 'integer'
-        except AssertionError as error:
-            raise DeserializationError(error) from error
-        match obj:
-            case {'minimum': int() as minimum}:
-                return {'minimum': minimum}
-            case {'maximum': int() as maximum}:
-                return {'maximum': maximum}
-        raise DeserializationError
+    multiple_of: int | None = None
+    exclusive_maximum: int | None = None
+    exclusive_minimum: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True, repr=False)
+class NumberSerializer(Serializer):
+    type: str = field(default='number', init=False)
+    minimum: int | None = None
+    maximum: int | None = None
+    multiple_of: int | None = None
+    exclusive_maximum: int | None = None
+    exclusive_minimum: int | None = None
+
+
+@dataclass(frozen=True, repr=False, kw_only=False)
+class BooleanSerializer(Serializer):
+    type: str = field(default='boolean', init=False)
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
+class ConstSerializer(Serializer):
+    const: Type
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
 class TypeSerializer(Serializer):
     type_: Type
 
-    def serialize(self) -> dict[str, Any]:
-        try:
-            result = {'type': encode_type(self.type_)}
-        except TypeError as error:
-            raise SerializationError(error) from error
-        return result
 
-    @classmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> dict[str, Any]:
-        match obj:
-            case {'type': str() as type_}:
-                return {'type': decode_type(type_)}
-        raise DeserializationError
+def _encode_field_value(value: Any):
+    if isinstance(value, Serializer):
+        return value.serialize()
+    if isinstance(value, type):
+        return encode_type(value)
+    return encode_value(value)
 
 
-@dataclass(frozen=True)
-class ConstSerializer[T](Serializer):
-    const: T
-
-    def serialize(self) -> dict[str, Any]:
-        try:
-            result = {'const': encode_value(self.const)}
-        except TypeError as error:
-            raise SerializationError from error
-        return result
-
-    @classmethod
-    def deserialize(cls, obj: Mapping[str, Any]) -> T:
-        try:
-            result = obj['const']
-        except KeyError as error:
-            raise DeserializationError from error
-        return result
+def _decode_json_value(value: Any):
+    try:
+        return decode_type(value)
+    except Exception:
+        pass
+    return value
 
 
-def _camel_case_to_snake_case(string: str) -> str:
-    return re.sub(r'(?<!^)(?=[A-Z])', '_', string).lower()
+def _encode_dict(data) -> dict:
+    schema = {}
+    for k, v in data.items():
+        if v is not None:
+            schema[encode_keyword(k)] = (
+                _encode_dict(v)
+                if isinstance(v, Mapping)
+                else _encode_field_value(v)
+            )
+    return schema
 
 
-def _snake_case_to_camel_case(string: str) -> str:
-    string = ''.join(word.title() for word in string.split('_'))
-    return string[0].lower() + string[1:]
+def _schema_factory(obj: 'Serializer') -> dict:
+    data = dict(obj)
+    return _encode_dict(data)
