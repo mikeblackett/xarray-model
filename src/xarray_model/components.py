@@ -13,11 +13,14 @@ from xarray_model.serializers import (
     ArraySerializer,
     IntegerSerializer,
     ObjectSerializer,
+    NullSerializer,
 )
 
 __all__ = [
     'Attrs',
     'Attr',
+    'Chunks',
+    'Chunk',
     'Datatype',
     'Dims',
     'Name',
@@ -26,7 +29,113 @@ __all__ = [
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
+class Chunk(Base):
+    """
+    DataArray chunk model
+
+    This model represents the tuple of block sizes for a single dimension, it
+    is supposed to be used inside the Chunks schema.
+
+    Parameters
+    ----------
+    shape : int | Sequence[int]
+    The expected shape of the chunk. If a single ``int`` is provided, it is
+    matched against the first block size in the tuple. If a ``Sequence`` is
+    provided, a full match is required.
+    """
+
+    # TODO: (mike) support `-1` wildcard to match chunksize to dimension size?
+
+    shape: int | Sequence[int] = field(kw_only=False)
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        if isinstance(self.shape, int):
+            if self.shape == -1:
+                prefix_items = [IntegerSerializer()]
+                items = False
+            else:
+                prefix_items = [ConstSerializer(const=self.shape)]
+                items = IntegerSerializer()
+        elif isinstance(self.shape, Sequence):
+            prefix_items = [
+                ConstSerializer(const=size) if size else IntegerSerializer()
+                for size in self.shape
+            ]
+            items = False
+        else:
+            raise ValueError(
+                f'Invalid shape: {self.shape}. '
+                'Expected int or sequence of ints.'
+            )
+
+        return ArraySerializer(
+            prefix_items=prefix_items,
+            items=items,
+        )
+
+    def validate(self, _) -> None:
+        raise NotImplementedError(
+            'Chunk is not meant to be validated in isolation. '
+            'You should compose it inside the Chunks schema.'
+        )
+
+
+@dataclass(frozen=True, kw_only=True, repr=False)
+class Chunks(Base):
+    """
+    DataArray chunks model
+
+    Use this model to validate the result of ``DataArray.chunks``
+
+    Parameters
+    ----------
+    chunks : bool | Sequence[Chunk]
+        If a boolean is provided, it is used to validate whether the
+        ``DataArray`` is chunked or not. To validate the actual chunk sizes, a
+        sequence of ``Chunk`` models should be provided.
+    """
+
+    chunks: bool | Sequence[Chunk] = field(default=False, kw_only=False)
+
+    title: str | None = 'Chunks'
+    description: str | None = (
+        'Tuple of block lengths for this dataarray’s data'
+    )
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        if not self.chunks:
+            return NullSerializer(
+                title=self.title,
+                description=self.description,
+            )
+        if isinstance(self.chunks, Sequence):
+            prefix_items = [chunk.serializer for chunk in self.chunks]
+            items = None
+        else:
+            items = ArraySerializer(items=IntegerSerializer())
+            prefix_items = None
+        return ArraySerializer(
+            title=self.title,
+            description=self.description,
+            prefix_items=prefix_items,
+            items=items,
+        )
+
+    def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
+        chunks = list(list(chunk) for chunk in chunks) if chunks else None
+        return super()._validate(instance=chunks)
+
+
+@dataclass(frozen=True, kw_only=True, repr=False)
 class Shape(Base):
+    """
+    DataArray shape model
+
+    Use this model to validate the result of ``DataArray.shape``
+    """
+
     shape: Sequence[int | None] = field(kw_only=False)
     title: str | None = 'Array shape'
     description: str | None = 'Tuple of array dimensions.'
@@ -92,7 +201,7 @@ class Name(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Dims(Base):
-    names: Sequence['Name']
+    names: Sequence['Name'] = field(kw_only=False)
     title: str | None = 'Dimension names'
     description: str | None = (
         'Tuple of dimension names associated with this array.'
@@ -116,8 +225,6 @@ class Attr(Base):
     regex: bool = False
     value: Any | None = None
     required: bool = True
-    description: str | None = 'Arbitrary metadata value'
-    title: str | None = 'Attr'
 
     @cached_property
     def serializer(self) -> Serializer:
