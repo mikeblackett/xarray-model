@@ -21,8 +21,8 @@ class Base(ABC):
     _type: ClassVar[JSONDataType]
     _validator: ClassVar = jsonschema.Draft202012Validator
 
-    title: str | None
-    description: str | None
+    title: str | None = None
+    description: str | None = None
 
     @cached_property
     @abstractmethod
