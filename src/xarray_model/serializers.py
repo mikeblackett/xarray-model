@@ -92,8 +92,11 @@ class ObjectSerializer(Serializer):
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ArraySerializer(Serializer):
     type: str = field(default='array', init=False)
-    items: Serializer | bool | None = None
     prefix_items: Iterable[Serializer] | None = None
+    items: Serializer | bool | None = None
+    contains: Serializer | None = None
+    min_contains: int | None = None
+    max_contains: int | None = None
     min_items: int | None = None
     max_items: int | None = None
 
