@@ -1,62 +1,158 @@
 from collections.abc import Mapping
-import json
-from abc import abstractmethod
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, ClassVar, Self
+from typing import Any
 
-import jsonschema
-
+from xarray_model import Chunks
+from xarray_model.base import Base
 from xarray_model.components import (
     Attrs,
-    Component,
-    Dims,
     Datatype,
+    Dims,
     Name,
     Shape,
 )
-from xarray_model.types import JSONDataType
-
-DIALECT = 'https://json-schema.org/draft/2020-12/schema'
+from xarray_model.serializers import Serializer, ObjectSerializer
 
 
 @dataclass(frozen=True, kw_only=True)
-class DataArraySchema(Base):
+class CoordsModel(Base):
+    title = 'Coords'
+    description = (
+        'Mapping of DataArray objects corresponding to coordinate variables.'
+    )
+    coords: Mapping[str, 'DataArrayModel'] = field(kw_only=False)
+    require_all_keys: bool = True
+    allow_extra_keys: bool = False
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            title=self.title,
+            description=self.description,
+            properties={
+                name: data_array.serializer
+                for name, data_array in self.coords.items()
+            },
+            required=list(self.coords.keys())
+            if self.require_all_keys
+            else None,
+            additional_properties=self.allow_extra_keys,
+        )
+
+    def validate(self, coords: Mapping[str, Any]) -> None:
+        instance = preprocess_data_dict(coords)
+        return super()._validate(instance=instance)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DataArrayModel(Base):
     title: str | None = 'xarray DataArray'
     description: str | None = (
         'N-dimensional array with labeled coordinates and dimensions.'
     )
-    dims: Dims | None = None
     attrs: Attrs | None = None
+    chunks: Chunks | None = None
+    coords: CoordsModel | None = None
+    dims: Dims | None = None
     dtype: Datatype | None = None
     name: Name | None = None
     shape: Shape | None = None
 
     @cached_property
-    def schema(self) -> dict[str, Any]:
-        schema = {
-            'title': self.title,
-            'description': self.description,
-            'type': 'object',
-            'additionalProperties': True,
-        }
-        properties = {}
-        if self.dims is not None:
-            properties.update(dims=self.dims.schema)
-        if self.attrs is not None:
-            properties.update(attrs=self.attrs.schema)
-        if self.dtype is not None:
-            properties.update(dtype=self.dtype.schema)
-        if self.shape is not None:
-            properties.update(shape=self.shape.schema)
-        if self.name is not None:
-            properties.update(name=self.name.schema)
-        return schema | {'properties': properties}
-
-    @classmethod
-    def from_schema(cls, data: Mapping[str, Any]) -> Self:
-        kwargs = {f.name: getattr(data, f.name) for f in fields(cls)}
-        return cls(**kwargs)
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            title=self.title,
+            description=self.description,
+            properties={
+                'attrs': self.attrs.serializer if self.attrs else None,
+                'chunks': self.chunks.serializer if self.chunks else None,
+                'coords': self.coords.serializer if self.coords else None,
+                'dims': self.dims.serializer if self.dims else None,
+                'dtype': self.dtype.serializer if self.dtype else None,
+                'name': self.name.serializer if self.name else None,
+                'shape': self.shape.serializer if self.shape else None,
+            },
+            additional_properties=True,  # for extra items from DataArray.to_dict()
+        )
 
     def validate(self, data_array: Any) -> None:
-        return super()._validate(instance=data_array.to_dict(data=False))
+        instance = data_array.to_dict(data=False)
+        instance = preprocess_data_dict(instance)
+        instance['chunks'] = (
+            list(list(chunk) for chunk in data_array.chunks)
+            if data_array.chunks
+            else None
+        )
+        return super()._validate(instance=instance)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DataVarsModel(Base):
+    data_vars: Mapping[str, 'DataArrayModel'] = field(kw_only=False)
+    title = 'DataVars'
+    description = (
+        'Dictionary of DataArray objects corresponding to data variables'
+    )
+    require_all_keys: bool = True
+    allow_extra_keys: bool = False
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            title=self.title,
+            description=self.description,
+            properties={
+                name: data_array.serializer
+                for name, data_array in self.data_vars.items()
+            },
+            required=list(self.data_vars.keys())
+            if self.require_all_keys
+            else None,
+            additional_properties=self.allow_extra_keys,
+        )
+
+    def validate(self, data_vars: Mapping[str, Any]) -> None:
+        instance = preprocess_data_dict(data_vars)
+        return super()._validate(instance=instance)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DatasetModel(Base):
+    title = 'Dataset'
+    description = 'A multi-dimensional, in memory, array database.'
+
+    coords: CoordsModel | None = None
+    data_vars: DataVarsModel | None = None
+    attrs: Attrs | None = None
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            title=self.title,
+            description=self.description,
+            properties={
+                'coords': self.coords.serializer if self.coords else None,
+                'data_vars': self.data_vars.serializer
+                if self.data_vars
+                else None,
+                'attrs': self.attrs.serializer if self.attrs else None,
+            },
+            additional_properties=True,  # for extra items from Dataset.to_dict()
+        )
+
+    def validate(self, data_array: Any) -> None:
+        instance = data_array.to_dict(data=False)
+        instance = preprocess_data_dict(instance)
+        return super()._validate(instance=instance)
+
+
+def preprocess_data_dict(data: dict) -> dict:
+    # Convert tuples to lists for JSON Schema validation
+    result = {}
+    for k, v in data.items():
+        if isinstance(v, dict):
+            result[k] = preprocess_data_dict(v)
+        else:
+            result[k] = list(v) if isinstance(v, tuple) else v
+    return result
