@@ -1,19 +1,25 @@
 from .components import (
     Attr,
     Attrs,
-    Dims,
+    Chunk,
+    Chunks,
     Datatype,
+    Dims,
     Name,
     Shape,
 )
-from .containers import DataArraySchema
+from .containers import DataArrayModel, CoordsModel, DataVarsModel
 
 __all__ = [
     'Attr',
     'Attrs',
-    'Dims',
+    'Chunk',
+    'Chunks',
+    'CoordsModel',
+    'DataArrayModel',
+    'DataVarsModel',
     'Datatype',
+    'Dims',
     'Name',
     'Shape',
-    'DataArraySchema',
 ]
