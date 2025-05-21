@@ -13,12 +13,13 @@ from xarray_model.encoding import (
 )
 
 __all__ = [
-    'AnnotationSerializer',
     'ArraySerializer',
     'BooleanSerializer',
     'ConstSerializer',
     'DeserializationError',
     'IntegerSerializer',
+    'NotSerializer',
+    'NullSerializer',
     'NumberSerializer',
     'ObjectSerializer',
     'SerializationError',
@@ -126,6 +127,11 @@ class NumberSerializer(Serializer):
 
 
 @dataclass(frozen=True, repr=False, kw_only=False)
+class NullSerializer(Serializer):
+    type: str = field(default='null', init=False)
+
+
+@dataclass(frozen=True, repr=False, kw_only=False)
 class BooleanSerializer(Serializer):
     type: str = field(default='boolean', init=False)
 
@@ -138,6 +144,11 @@ class ConstSerializer(Serializer):
 @dataclass(frozen=True, repr=False, kw_only=True)
 class TypeSerializer(Serializer):
     type_: Type
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
+class NotSerializer(Serializer):
+    not_: Serializer = field(default=None, kw_only=False)
 
 
 def _encode_field_value(value: Any):
