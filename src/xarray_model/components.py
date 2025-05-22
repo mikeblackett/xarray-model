@@ -191,6 +191,8 @@ class Datatype(Base):
 class Name(Base):
     name: str = field(kw_only=False)
     regex: bool = False
+    min_length: int | None = None
+    max_length: int | None = None
     title: str | None = 'Array name'
     description: str | None = 'The name of this array.'
 
@@ -201,6 +203,8 @@ class Name(Base):
                 title=self.title,
                 description=self.description,
                 pattern=self.name,
+                min_length=self.min_length,
+                max_length=self.max_length,
             )
         return ConstSerializer(
             title=self.title,
