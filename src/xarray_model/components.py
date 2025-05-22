@@ -119,16 +119,21 @@ class Chunks(Base):
                 description=self.description,
             )
         if isinstance(self.chunks, Sequence):
-            prefix_items = [chunk.serializer for chunk in self.chunks]
-            items = None
+            prefix_items = [chunk.serializer for chunk in self.chunks]  # type: ignore[union-attr]
+            items = False
+            min_items = max_items = len(prefix_items)
         else:
+            # Must be `True`
             items = ArraySerializer(items=IntegerSerializer())
             prefix_items = None
+            min_items = max_items = None
         return ArraySerializer(
             title=self.title,
             description=self.description,
             prefix_items=prefix_items,
             items=items,
+            min_items=min_items,
+            max_items=max_items,
         )
 
     def validate(self, chunks: ChunksType) -> None:
