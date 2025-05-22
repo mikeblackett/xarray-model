@@ -114,10 +114,7 @@ class Chunks(Base):
     @cached_property
     def serializer(self) -> Serializer:
         if not self.chunks:
-            return NullSerializer(
-                title=self.title,
-                description=self.description,
-            )
+            return NullSerializer()
         if isinstance(self.chunks, Sequence):
             prefix_items = [chunk.serializer for chunk in self.chunks]  # type: ignore[union-attr]
             items = False
@@ -128,8 +125,6 @@ class Chunks(Base):
             prefix_items = None
             min_items = max_items = None
         return ArraySerializer(
-            title=self.title,
-            description=self.description,
             prefix_items=prefix_items,
             items=items,
             min_items=min_items,
@@ -156,8 +151,6 @@ class Shape(Base):
     @cached_property
     def serializer(self) -> Serializer:
         return ArraySerializer(
-            title=self.title,
-            description=self.description,
             prefix_items=[
                 IntegerSerializer() if size == -1 else ConstSerializer(size)
                 for size in self.shape
@@ -177,11 +170,7 @@ class Datatype(Base):
 
     @cached_property
     def serializer(self) -> Serializer:
-        return ConstSerializer(
-            title=self.title,
-            description=self.description,
-            const=self.dtype,
-        )
+        return ConstSerializer(self.dtype)
 
     def validate(self, dtype: DTypeLike) -> None:
         return super()._validate(instance=dtype)
@@ -200,17 +189,11 @@ class Name(Base):
     def serializer(self) -> Serializer:
         if self.regex:
             return StringSerializer(
-                title=self.title,
-                description=self.description,
                 pattern=self.name,
                 min_length=self.min_length,
                 max_length=self.max_length,
             )
-        return ConstSerializer(
-            title=self.title,
-            description=self.description,
-            const=self.name,
-        )
+        return ConstSerializer(self.name)
 
     def validate(self, name: str) -> None:
         return super()._validate(instance=name)
@@ -298,8 +281,6 @@ class Attrs(Base):
             if (attr.required and not attr.regex)
         ]
         return ObjectSerializer(
-            title=self.title,
-            description=self.description,
             properties={
                 attr.name: attr.serializer
                 for attr in self.attrs
