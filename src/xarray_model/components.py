@@ -289,6 +289,14 @@ class Attrs(Base):
 
     @cached_property
     def serializer(self) -> Serializer:
+        pattern_properties = {
+            attr.name: attr.serializer for attr in self.attrs if attr.regex
+        }
+        required = [
+            attr.name
+            for attr in self.attrs
+            if (attr.required and not attr.regex)
+        ]
         return ObjectSerializer(
             title=self.title,
             description=self.description,
@@ -297,14 +305,8 @@ class Attrs(Base):
                 for attr in self.attrs
                 if not attr.regex
             },
-            pattern_properties={
-                attr.name: attr.serializer for attr in self.attrs if attr.regex
-            },
-            required=[
-                attr.name
-                for attr in self.attrs
-                if attr.required and not attr.regex
-            ],
+            pattern_properties=pattern_properties or None,
+            required=required or None,
             additional_properties=self.allow_extra_keys,
         )
 
