@@ -48,7 +48,7 @@ def as_schema(obj: 'Serializer') -> dict:
     return asdict(obj, dict_factory=_schema_factory)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Serializer(ABC):
     title: str | None = None
     description: str | None = None
@@ -141,17 +141,17 @@ class BooleanSerializer(Serializer):
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class ConstSerializer(Serializer):
-    const: Type
+    const: Any = field(kw_only=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class TypeSerializer(Serializer):
-    type_: Type
+    type_: Type = field(kw_only=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class NotSerializer(Serializer):
-    not_: Serializer = field(default=None, kw_only=False)
+    not_: Serializer = field(kw_only=False)
 
 
 def _encode_field_value(value: Any):
