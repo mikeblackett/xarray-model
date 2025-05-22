@@ -149,7 +149,7 @@ class Shape(Base):
     Use this model to validate the result of ``DataArray.shape``
     """
 
-    shape: Sequence[int | None] = field(kw_only=False)
+    shape: Sequence[int] = field(kw_only=False)
     title: str | None = 'Array shape'
     description: str | None = 'Tuple of array dimensions.'
 
@@ -159,7 +159,7 @@ class Shape(Base):
             title=self.title,
             description=self.description,
             prefix_items=[
-                ConstSerializer(size) if size else IntegerSerializer()
+                IntegerSerializer() if size == -1 else ConstSerializer(size)
                 for size in self.shape
             ],
         )
