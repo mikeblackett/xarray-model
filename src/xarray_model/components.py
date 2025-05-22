@@ -218,18 +218,39 @@ class Name(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Dims(Base):
-    names: Sequence['Name'] = field(kw_only=False)
+    names: Sequence[Name | str] | None = field(kw_only=False, default=None)
+    contains: Name | None = None
+    min_contains: int | None = None
+    max_contains: int | None = None
+    min_items: int | None = None
+    max_items: int | None = None
     title: str | None = 'Dimension names'
     description: str | None = (
         'Tuple of dimension names associated with this array.'
     )
 
+    def __post_init__(self):
+        _names = [
+            name if isinstance(name, Name) else Name(name)
+            for name in self.names
+        ]
+        object.__setattr__(self, 'names', _names)
+
     @cached_property
     def serializer(self) -> Serializer:
+        prefix_items = (
+            [name.serializer for name in self.names] if self.names else None
+        )
+        items = False if prefix_items else None
+        contains = self.contains.serializer if self.contains else None
         return ArraySerializer(
-            title=self.title,
-            description=self.description,
-            prefix_items=[name.serializer for name in self.names],
+            prefix_items=prefix_items,
+            items=items,
+            contains=contains,
+            min_contains=self.min_contains,
+            max_contains=self.max_contains,
+            min_items=self.min_items,
+            max_items=self.max_items,
         )
 
     def validate(self, dims: tuple[Hashable]) -> None:
