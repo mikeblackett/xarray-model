@@ -20,16 +20,17 @@ __all__ = [
     'Attrs',
     'Attr',
     'Chunks',
-    'Chunk',
     'Datatype',
     'Dims',
     'Name',
     'Shape',
 ]
 
+from xarray_model.types import ChunksType
+
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Chunk(Base):
+class _Chunk(Base):
     """
     DataArray chunk model
 
@@ -96,12 +97,19 @@ class Chunks(Base):
         sequence of ``Chunk`` models should be provided.
     """
 
-    chunks: bool | Sequence[Chunk] = field(default=False, kw_only=False)
+    chunks: bool | Sequence[Sequence[int] | int] = field(kw_only=False)
 
     title: str | None = 'Chunks'
     description: str | None = (
         'Tuple of block lengths for this dataarray’s data'
     )
+
+    def __post_init__(self):
+        _chunks = [
+            chunk if isinstance(chunk, _Chunk) else _Chunk(chunk)
+            for chunk in self.chunks
+        ]
+        object.__setattr__(self, 'chunks', _chunks)
 
     @cached_property
     def serializer(self) -> Serializer:
@@ -123,7 +131,7 @@ class Chunks(Base):
             items=items,
         )
 
-    def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
+    def validate(self, chunks: ChunksType) -> None:
         chunks = list(list(chunk) for chunk in chunks) if chunks else None
         return super()._validate(instance=chunks)
 

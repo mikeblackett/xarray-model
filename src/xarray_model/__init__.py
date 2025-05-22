@@ -1,7 +1,6 @@
 from .components import (
     Attr,
     Attrs,
-    Chunk,
     Chunks,
     Datatype,
     Dims,
@@ -13,7 +12,6 @@ from .containers import DataArrayModel, CoordsModel, DataVarsModel
 __all__ = [
     'Attr',
     'Attrs',
-    'Chunk',
     'Chunks',
     'CoordsModel',
     'DataArrayModel',

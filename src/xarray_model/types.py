@@ -13,3 +13,5 @@ type JSONDataType = Literal[
     'pattern',
     'string',
 ]
+
+type ChunksType = tuple[tuple[int, ...], ...] | None
