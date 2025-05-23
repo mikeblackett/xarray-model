@@ -154,7 +154,13 @@ class NotSerializer(Serializer):
     not_: Serializer = field(kw_only=False)
 
 
+@dataclass(frozen=True, repr=False, kw_only=True)
+class OneOfSerializer(Serializer):
+    one_of: Iterable[Serializer] = field(kw_only=False)
+
+
 def _encode_field_value(value: Any):
+    """Encode a Serializer field value into a JSON schema."""
     if isinstance(value, Serializer):
         return value.serialize()
     if isinstance(value, type):
@@ -164,6 +170,7 @@ def _encode_field_value(value: Any):
 
 def _decode_json_value(value: Any):
     try:
+        # TODO: (mike) this is hacky...
         return decode_type(value)
     except Exception:
         pass
@@ -171,6 +178,7 @@ def _decode_json_value(value: Any):
 
 
 def _encode_dict(data) -> dict:
+    """Encode a dictionary into a JSON schema."""
     schema = {}
     for k, v in data.items():
         if v is not None:
@@ -183,5 +191,6 @@ def _encode_dict(data) -> dict:
 
 
 def _schema_factory(obj: 'Serializer') -> dict:
+    """Encode a serializer into a JSON schema."""
     data = dict(obj)
     return _encode_dict(data)

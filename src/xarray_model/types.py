@@ -1,6 +1,9 @@
+from collections.abc import Sequence
 from typing import Literal
 
-__all__ = ['JSONDataType']
+from numpy.typing import DTypeLike
+
+__all__ = ['ChunksType', 'JSONDataType', 'ShapeType', 'DTypeLike']
 
 type JSONDataType = Literal[
     'array',
@@ -14,4 +17,7 @@ type JSONDataType = Literal[
     'string',
 ]
 
-type ChunksType = tuple[tuple[int, ...], ...] | None
+type ChunksType = bool | Sequence[Sequence[int] | int]
+type ShapeType = Sequence[int]
+type NameType = str
+type DimsType = Sequence[NameType | str]
