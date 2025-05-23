@@ -53,12 +53,24 @@ class _Chunk(Base):
     def serializer(self) -> Serializer:
         if isinstance(self.shape, int):
             if self.shape == -1:
+                # `-1` is a dask wildcard meaning "use the full dimension size."
+                # Expect a length 1 array of integers.
                 prefix_items = [IntegerSerializer()]
                 items = False
             else:
+                # A single integer is used to represent a uniform chunk size.
+                # In this case, we expect only the first block size in the tuple to
+                # match the provided shape.
+                # TODO: (mike) this is not a very robust test... Ideally we
+                #  would want to specify an `items` keyword together with a
+                #  `min_items` and `max_items` equal to the number of chunks -1,
+                #  which would correspond to the dask criteria for "uniform chunks sizes".
+                #  But we don't know the number of chunks at schema creation time,
+                #  only at validation time...
                 prefix_items = [ConstSerializer(const=self.shape)]
                 items = IntegerSerializer()
         elif isinstance(self.shape, Sequence):
+            # Expect a full match of the provided shape to the chunk size.
             prefix_items = [
                 ConstSerializer(const=size) if size else IntegerSerializer()
                 for size in self.shape
@@ -85,16 +97,18 @@ class _Chunk(Base):
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Chunks(Base):
     """
-    DataArray chunks model
+    DataArray chunks validation model
 
     Use this model to validate the result of ``DataArray.chunks``
 
     Parameters
     ----------
-    chunks : bool | Sequence[Chunk]
+    chunks : ChunksType
         If a boolean is provided, it is used to validate whether the
-        ``DataArray`` is chunked or not. To validate the actual chunk sizes, a
-        sequence of ``Chunk`` models should be provided.
+        ``DataArray`` is chunked or not. To validate the actual block sizes, a
+        sequence of chunk sizes can be provided. A sequence of integers is used
+        to represent an expected uniform chunk size. To perform an exact match,
+        a sequence of integer sequences can be used.
     """
 
     chunks: bool | Sequence[Sequence[int] | int] = field(kw_only=False)
@@ -131,7 +145,7 @@ class Chunks(Base):
             max_items=max_items,
         )
 
-    def validate(self, chunks: ChunksType) -> None:
+    def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
         chunks = list(list(chunk) for chunk in chunks) if chunks else None
         return super()._validate(instance=chunks)
 
@@ -139,9 +153,19 @@ class Chunks(Base):
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Shape(Base):
     """
-    DataArray shape model
+    DataArray shape validation model
 
     Use this model to validate the result of ``DataArray.shape``
+
+    Parameters
+    ----------
+    shape : Sequence[int] | None, default None
+        Expected shape of the array. The default value of ``None`` will match
+        any shape. An integer value of ``-1`` can be used as a wildcard.
+    min_size : int | None, default None
+        Minimum length of the shape sequence i.e., the number of dimensions.
+    max_size : int | None, default None
+        Maximum length of the shape sequence i.e., the number of dimensions.
     """
 
     shape: Sequence[int] = field(kw_only=False)
@@ -163,6 +187,18 @@ class Shape(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Datatype(Base):
+    """
+    DataArray dtype validation model
+
+    Use this model to validate the result of ``DataArray.dtype``
+
+    Parameters
+    ----------
+    dtype : DTypeLike | None, default None
+        The expected data type of the array. This can be a NumPy dtype or the
+        name of a dtype. The default value of ``None`` will match any dtype.
+    """
+
     # TODO: (mike) support numpy subdytpes
     dtype: DTypeLike = field(kw_only=False)
     title: str | None = 'Array dtype'
@@ -178,7 +214,25 @@ class Datatype(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Name(Base):
-    name: str = field(kw_only=False)
+    """
+    DataArray name validation model
+
+    Parameters
+    ----------
+    name : str | Sequence[str] | None, default None
+        Expected value, sequence of acceptable values, or regex pattern to
+        match the name against. The default value of ``None`` will match any
+        name.
+    regex : bool, default False
+        Flag to indicate that the ``name`` parameter should be treated as a
+        regex pattern.
+    min_size : int, default None
+        Minimum length of the name. Only used if ``name`` is a string.
+    max_size : int, default None
+        Maximum length of the name. Only used if ``name`` is a string.
+    """
+
+    name: str | Sequence[str] | None = field(default=None, kw_only=False)
     regex: bool = False
     min_length: int | None = None
     max_length: int | None = None
