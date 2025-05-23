@@ -30,8 +30,6 @@ __all__ = [
     'Shape',
 ]
 
-from xarray_model.types import ChunksType
-
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class _Chunk(Base):
@@ -117,11 +115,6 @@ class Chunks(Base):
 
     chunks: bool | Sequence[Sequence[int] | int] = field(kw_only=False)
 
-    title: str | None = 'Chunks'
-    description: str | None = (
-        'Tuple of block lengths for this dataarray’s data'
-    )
-
     def __post_init__(self):
         _chunks = [
             chunk if isinstance(chunk, _Chunk) else _Chunk(chunk)
@@ -202,7 +195,7 @@ class Shape(Base):
             max_items=max_items,
         )
 
-    def validate(self, shape: tuple[int]) -> None:
+    def validate(self, shape: tuple[int, ...]) -> None:
         return super()._validate(instance=(list(shape)))
 
 
@@ -227,7 +220,7 @@ class Datatype(Base):
     def serializer(self) -> Serializer:
         return ConstSerializer(self.dtype)
 
-    def validate(self, dtype: DTypeLike) -> None:
+    def validate(self, dtype: np.dtype) -> None:
         return super()._validate(instance=dtype)
 
 
