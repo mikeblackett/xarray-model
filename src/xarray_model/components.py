@@ -3,9 +3,12 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any, Iterable
 
+import numpy as np
 from numpy.typing import DTypeLike
+
 from xarray_model.base import Base
 from xarray_model.serializers import (
+    ArraySerializer,
     ConstSerializer,
     EnumSerializer,
     IntegerSerializer,
@@ -14,10 +17,6 @@ from xarray_model.serializers import (
     Serializer,
     StringSerializer,
     TypeSerializer,
-    ArraySerializer,
-    IntegerSerializer,
-    ObjectSerializer,
-    NullSerializer,
 )
 
 __all__ = [
@@ -246,20 +245,33 @@ class Name(Base):
 
     name: str | Sequence[str] | None = field(default=None, kw_only=False)
     regex: bool = False
-    min_length: int | None = None
-    max_length: int | None = None
-    title: str | None = 'Array name'
-    description: str | None = 'The name of this array.'
+    min_size: int | None = None
+    max_size: int | None = None
+
+    def __post_init__(self):
+        if self.regex and not isinstance(self.name, str):
+            raise ValueError(
+                f'The regex flag must be used with a string name; got {self.name!r}'
+            )
 
     @cached_property
     def serializer(self) -> Serializer:
-        if self.regex:
-            return StringSerializer(
-                pattern=self.name,
-                min_length=self.min_length,
-                max_length=self.max_length,
-            )
-        return ConstSerializer(self.name)
+        if isinstance(self.name, Sequence) and not isinstance(self.name, str):
+            return EnumSerializer(self.name)
+        if isinstance(self.name, str):
+            if self.regex:
+                return StringSerializer(
+                    pattern=self.name,
+                    min_length=self.min_size,
+                    max_length=self.max_size,
+                )
+            else:
+                return ConstSerializer(self.name)
+        # `name` is None
+        return StringSerializer(
+            min_length=self.min_size,
+            max_length=self.max_size,
+        )
 
     def validate(self, name: str) -> None:
         return super()._validate(instance=name)
