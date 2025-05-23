@@ -17,6 +17,7 @@ __all__ = [
     'BooleanSerializer',
     'ConstSerializer',
     'DeserializationError',
+    'EnumSerializer',
     'IntegerSerializer',
     'NotSerializer',
     'NullSerializer',
@@ -76,6 +77,11 @@ class Serializer(ABC):
         ]
         args_string = ', '.join(f'{name}={value}' for name, value in args)
         return f'{self.__class__.__name__}({args_string})'
+
+
+@dataclass(frozen=True, kw_only=True, repr=False)
+class EnumSerializer(Serializer):
+    enum: Iterable[Any] = field(kw_only=False)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
