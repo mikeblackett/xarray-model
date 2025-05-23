@@ -48,6 +48,7 @@ def encode_type(type_: Type) -> str:
         f'Error encoding python type {type_!r} as JSON Schema type.'
     )
 
+
 DECODE_TYPES = {
     'string': str,
     'integer': int,
@@ -56,6 +57,8 @@ DECODE_TYPES = {
     'object': dict,
     'array': list,
 }
+
+
 def decode_type(type_: str) -> Type:
     return DECODE_TYPES.get(type_, type_)
 

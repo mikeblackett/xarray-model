@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field, fields
 from re import Pattern
 from typing import Any, Self, Type
 
-from xarray_model.encoding import (
+from xarray_model.encoders import (
     encode_value,
     encode_keyword,
     decode_keyword,
