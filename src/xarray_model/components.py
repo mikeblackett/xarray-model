@@ -221,9 +221,7 @@ class Datatype(Base):
     """
 
     # TODO: (mike) support numpy subdytpes
-    dtype: DTypeLike = field(kw_only=False)
-    title: str | None = 'Array dtype'
-    description: str | None = 'Data-type of the array’s elements.'
+    dtype: DTypeLike | None = field(default=None, kw_only=False)
 
     @cached_property
     def serializer(self) -> Serializer:
