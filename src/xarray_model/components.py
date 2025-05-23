@@ -7,6 +7,10 @@ from numpy.typing import DTypeLike
 from xarray_model.base import Base
 from xarray_model.serializers import (
     ConstSerializer,
+    EnumSerializer,
+    IntegerSerializer,
+    NullSerializer,
+    ObjectSerializer,
     Serializer,
     StringSerializer,
     TypeSerializer,
@@ -168,17 +172,34 @@ class Shape(Base):
         Maximum length of the shape sequence i.e., the number of dimensions.
     """
 
-    shape: Sequence[int] = field(kw_only=False)
-    title: str | None = 'Array shape'
-    description: str | None = 'Tuple of array dimensions.'
+    shape: Sequence[int] | None = field(default=None, kw_only=False)
+    min_size: int | None = None
+    max_size: int | None = None
 
     @cached_property
     def serializer(self) -> Serializer:
-        return ArraySerializer(
-            prefix_items=[
+        if isinstance(self.shape, Sequence):
+            prefix_items = [
                 IntegerSerializer() if size == -1 else ConstSerializer(size)
                 for size in self.shape
-            ],
+            ]
+            items = None
+            min_items = (
+                len(self.shape) if self.min_size is None else self.min_size
+            )
+            max_items = (
+                len(self.shape) if self.max_size is None else self.max_size
+            )
+        else:
+            prefix_items = None
+            items = IntegerSerializer()
+            min_items = self.min_size
+            max_items = self.max_size
+        return ArraySerializer(
+            prefix_items=prefix_items,
+            items=items,
+            min_items=min_items,
+            max_items=max_items,
         )
 
     def validate(self, shape: tuple[int]) -> None:
