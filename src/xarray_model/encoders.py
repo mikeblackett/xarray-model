@@ -47,7 +47,7 @@ def decode_keyword(keyword: str):
 
 @singledispatch
 def encode_value(value: Any) -> Any:
-    if isinstance(value, Iterable) and not isinstance(value, str):
+    if isinstance(value, Sequence) and not isinstance(value, str):
         return list(value)
     return value  # Default: identity
 
