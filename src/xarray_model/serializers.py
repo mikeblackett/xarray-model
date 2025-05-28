@@ -56,11 +56,35 @@ def as_schema(obj: 'Serializer') -> dict:
 
 @dataclass(frozen=True, kw_only=True)
 class Serializer(ABC):
+    """Abstract base class for serializing Python objects to JSON Schema.
+
+    Each serializer should correspond to a JSON Schema Data Type. The attributes
+    of a Serializer class should correspond to JSON Schema keywords. The values
+    corresponding to the keywords can be Python primitives, or other `Serializers`.
+
+    Keyword attributes should be declared in snake_case without prefixes, they
+    will be converted to JSON Schema when serializing.
+
+    Attributes
+    ----------
+    title : str, optional
+        A short description of the instance described by this schema.
+    description : str, optional
+        A description about the purpose of the instance described by this schema.
+    comment : str, optional
+        Notes that may be useful to future editors of a JSON schema, but should
+        not be used to communicate to users of the schema.
+    """
+
     title: str | None = None
     description: str | None = None
     comment: str | None = None
 
     def serialize(self) -> dict[str, Any]:
+        """Convert this serializer to a JSON schema.
+
+        This is a convenience method that wraps `as_schema`.
+        """
         return as_schema(self)
 
     @classmethod
@@ -96,6 +120,36 @@ class EnumSerializer(Serializer):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ObjectSerializer(Serializer):
+    """Serializer for mapping type
+
+    Attributes
+    ----------
+    properties : Mapping[str, Serializer] | None, default None
+        A mapping where each key is the name of a property and each value is a
+        `Serializer` used to validate that property.
+    pattern_properties : Mapping[str, Serializer] | None, default None
+        A mapping where each key is a regular expression used to match the name
+        of a property and each value is a `Serializer` used to validate that
+        property.
+    additional_properties : Serializer | bool | None, default None
+        A schema that will be used to validate any properties in the instance
+        that are not matched by `properties` or `patternProperties`. Boolean
+        values can be used to allow/disallow any additional properties.
+    required : Iterable[str] | None, default None
+        An iterable of zero or more unique strings describing a list of
+        required properties. Any properties not included in this list are treated
+        as optional.
+    max_properties : int | None, default None
+        A non-negative integer used to restrict the number of properties on an
+        object.
+    min_properties : int | None, default None
+        A non-negative integer used to restrict the number of properties on an
+        object.
+    """
+
+    # TODO: (mike) replace `additionalProperties` keyword with `unevaluatedProperties`
+    # TODO: (mike) add `propertyNames` keyword
+
     type: str = field(default='object', init=False)
 
     properties: Mapping[str, Serializer] | None = None
@@ -116,6 +170,34 @@ class ObjectSerializer(Serializer):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ArraySerializer(Serializer):
+    """Serializer for sequence type
+
+    Attributes
+    ----------
+    items : Serializer | bool | None, default None
+        A single schema that will be used to validate all the items in the array.
+        The empty array is always valid.
+    prefix_items : Sequence[Serializer] | None, default None
+        An array, where each item is a `Serializer` that corresponds to each
+        index of the instance's array.
+    unevaluated_items : Serializer | None, default None
+        A schema that applies to any values not evaluated by the `items`,
+        `prefix_items`, or `contains` keyword.
+    contains : Serializer | None, default None
+        A schema that only needs to validate against one or more items in the
+        array.
+    max_contains : int | None, default None
+        A non-negative integer used to restrict the number of times a schema
+        matches a `contains` constraint.
+    min_contains : int | None, default None
+        A non-negative integer used to restrict the number of times a schema
+        matches a `contains` constraint.
+    max_items : int | None, default None
+        A non-negative integer used to restrict the number of items in an array.
+    min_items : int | None, default None
+        A non-negative integer used to restrict the number of items in an array.
+    """
+
     type: str = field(default='array', init=False)
 
     items: Serializer | bool | None = None
@@ -140,6 +222,20 @@ class ArraySerializer(Serializer):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class StringSerializer(Serializer):
+    """Serializer for string type
+
+    Attributes
+    ----------
+    max_length : int | None, default None
+        A non-negative integer used to restrict the number of characters in a
+        string.
+    min_length : int | None, default None
+        A non-negative integer used to restrict the number of characters in a
+        string.
+    pattern : str | Pattern[str] | None, default None
+        A pattern used to restrict a string to a particular regular expression.
+    """
+
     type: str = field(default='string', init=False)
 
     max_length: int | None = None
@@ -155,6 +251,23 @@ class StringSerializer(Serializer):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class IntegerSerializer(Serializer):
+    """Serializer for integer type
+
+    Attributes
+    ----------
+    multiple_of : int | None, default None
+        A positive number used to restrict the instance to a multiple of a
+        given number
+    maximum : int | None, default None
+        A number used to restrict the instance to a maximum value.
+    minimum : int | None, default None
+        A number used to restrict the instance to a minimum value.
+    exclusive_maximum : int | None, default None
+        A number used to restrict the instance to a maximum value.
+    exclusive_minimum : int | None, default None
+        A number used to restrict the instance to a minimum value.
+    """
+
     type: str = field(default='integer', init=False)
 
     multiple_of: int | None = None
@@ -170,6 +283,23 @@ class IntegerSerializer(Serializer):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class NumberSerializer(Serializer):
+    """Serializer for numeric type, either integers or floating point numbers.
+
+    Attributes
+    ----------
+    multiple_of : int | float | None, default None
+        A positive number used to restrict the instance to a multiple of a
+        given number
+    maximum : int | float | None, default None
+        A number used to restrict the instance to a maximum value.
+    minimum : int | float | None, default None
+        A number used to restrict the instance to a minimum value.
+    exclusive_maximum : int | float | None, default None
+        A number used to restrict the instance to a maximum value.
+    exclusive_minimum : int | float | None, default None
+        A number used to restrict the instance to a minimum value.
+    """
+
     type: str = field(default='number', init=False)
 
     multiple_of: int | float | None = None
@@ -185,21 +315,36 @@ class NumberSerializer(Serializer):
 
 @dataclass(frozen=True, repr=False, kw_only=False)
 class NullSerializer(Serializer):
+    """Serializer for null type"""
+
     type: str = field(default='null', init=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=False)
 class BooleanSerializer(Serializer):
+    """Serializer for boolean type"""
+
     type: str = field(default='boolean', init=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class ConstSerializer(Serializer):
+    """Serializer for constant type
+
+    Attributes
+    ----------
+
+    const : Any
+        The expected value of the instance
+    """
+
     const: Any = field(kw_only=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class TypeSerializer(Serializer):
+    """Serializer for data type keyword"""
+
     type_: Type = field(kw_only=False)
 
 
