@@ -1,9 +1,14 @@
 from abc import ABC
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields
 from re import Pattern
 from typing import Any, Self, Type
 
+from xarray_model.checks import (
+    check_uniqueness,
+    check_non_negative,
+    check_valid_size,
+)
 from xarray_model.encoders import (
     encode_value,
     encode_keyword,
@@ -53,6 +58,7 @@ def as_schema(obj: 'Serializer') -> dict:
 class Serializer(ABC):
     title: str | None = None
     description: str | None = None
+    comment: str | None = None
 
     def serialize(self) -> dict[str, Any]:
         return as_schema(self)
@@ -81,58 +87,100 @@ class Serializer(ABC):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class EnumSerializer(Serializer):
+    def __post_init__(self):
+        check_valid_size(self.enum, min_size=1)
+        check_uniqueness(self.enum)
+
     enum: Iterable[Any] = field(kw_only=False)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ObjectSerializer(Serializer):
     type: str = field(default='object', init=False)
+
     properties: Mapping[str, Serializer] | None = None
     pattern_properties: Mapping[str, Serializer] | None = None
     additional_properties: Serializer | bool | None = None
-    min_properties: int | None = None
-    max_properties: int | None = None
     required: Iterable[str] | None = None
+    max_properties: int | None = None
+    min_properties: int | None = None
+
+    def __post_init__(self):
+        if self.min_properties is not None:
+            check_non_negative(self.min_properties)
+        if self.max_properties is not None:
+            check_non_negative(self.max_properties)
+        if self.required is not None:
+            check_uniqueness(self.required)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ArraySerializer(Serializer):
     type: str = field(default='array', init=False)
-    prefix_items: Iterable[Serializer] | None = None
+
     items: Serializer | bool | None = None
+    prefix_items: Sequence[Serializer] | None = None
+    unevaluated_items: Serializer | None = None
     contains: Serializer | None = None
-    min_contains: int | None = None
     max_contains: int | None = None
-    min_items: int | None = None
+    min_contains: int | None = None
     max_items: int | None = None
+    min_items: int | None = None
+
+    def __post_init__(self):
+        if self.min_items is not None:
+            check_non_negative(self.min_items)
+        if self.max_items is not None:
+            check_non_negative(self.max_items)
+        if self.min_contains is not None:
+            check_non_negative(self.min_contains)
+        if self.max_contains is not None:
+            check_non_negative(self.max_contains)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class StringSerializer(Serializer):
     type: str = field(default='string', init=False)
-    pattern: str | Pattern[str] | None = None
-    min_length: int | None = None
+
     max_length: int | None = None
+    min_length: int | None = None
+    pattern: str | Pattern[str] | None = None
+
+    def __post_init__(self):
+        if self.min_length is not None:
+            check_non_negative(self.min_length)
+        if self.max_length is not None:
+            check_non_negative(self.max_length)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class IntegerSerializer(Serializer):
     type: str = field(default='integer', init=False)
-    minimum: int | None = None
-    maximum: int | None = None
+
     multiple_of: int | None = None
+    maximum: int | None = None
+    minimum: int | None = None
     exclusive_maximum: int | None = None
     exclusive_minimum: int | None = None
+
+    def __post_init__(self):
+        if self.multiple_of is not None:
+            check_non_negative(self.multiple_of)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class NumberSerializer(Serializer):
     type: str = field(default='number', init=False)
-    minimum: int | None = None
-    maximum: int | None = None
-    multiple_of: int | None = None
-    exclusive_maximum: int | None = None
-    exclusive_minimum: int | None = None
+
+    multiple_of: int | float | None = None
+    maximum: int | float | None = None
+    minimum: int | float | None = None
+    exclusive_maximum: int | float | None = None
+    exclusive_minimum: int | float | None = None
+
+    def __post_init__(self):
+        if self.multiple_of is not None:
+            check_non_negative(self.multiple_of)
 
 
 @dataclass(frozen=True, repr=False, kw_only=False)
