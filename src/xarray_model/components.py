@@ -46,47 +46,52 @@ class _Chunk(Base):
     provided, a full match is required.
     """
 
-    # TODO: (mike) support `-1` wildcard to match chunksize to dimension size?
-
     shape: int | Sequence[int] = field(kw_only=False)
 
     @cached_property
     def serializer(self) -> Serializer:
-        if isinstance(self.shape, int):
-            if self.shape == -1:
+        match self.shape:
+            case -1:
                 # `-1` is a dask wildcard meaning "use the full dimension size."
                 # Expect a length 1 array of integers.
-                prefix_items = [IntegerSerializer()]
-                items = False
-            else:
-                # A single integer is used to represent a uniform chunk size.
-                # In this case, we expect only the first block size in the tuple to
-                # match the provided shape.
-                # TODO: (mike) this is not a very robust test... Ideally we
-                #  would want to specify an `items` keyword together with a
-                #  `min_items` and `max_items` equal to the number of chunks -1,
-                #  which would correspond to the dask criteria for "uniform chunks sizes".
-                #  But we don't know the number of chunks at schema creation time,
-                #  only at validation time...
-                prefix_items = [ConstSerializer(const=self.shape)]
-                items = IntegerSerializer()
-        elif isinstance(self.shape, Sequence):
-            # Expect a full match of the provided shape to the chunk size.
-            prefix_items = [
-                ConstSerializer(const=size) if size else IntegerSerializer()
-                for size in self.shape
-            ]
-            items = False
-        else:
-            raise ValueError(
-                f'Invalid shape: {self.shape}. '
-                'Expected int or sequence of ints.'
-            )
-
-        return ArraySerializer(
-            prefix_items=prefix_items,
-            items=items,
-        )
+                return ArraySerializer(
+                    items=IntegerSerializer(), min_items=1, max_items=1
+                )
+            case int():
+                # A single integer is used to represent a uniform chunk size
+                # where all chunks should be equal to `shape` except the last one,
+                # which is free to vary.
+                # TODO: (mike) this schema doesn't validate that the
+                #  variable chunk is last in the array. That is currently not
+                #  possible with JSON Schema (https://github.com/json-schema-org/json-schema-spec/issues/1060).
+                #  We could opt for custom validation...
+                return ArraySerializer(
+                    # First chunk is equal to `shape`.
+                    prefix_items=[ConstSerializer(self.shape)],
+                    # Other chunks are `shape` or smaller...
+                    items=IntegerSerializer(maximum=self.shape),
+                    # but there is only one "other" chunk.
+                    contains=IntegerSerializer(exclusive_maximum=self.shape),
+                    max_contains=1,
+                    min_contains=0,
+                )
+            case Sequence() if not isinstance(self.shape, str):
+                # Expect a full match of the provided shape to the chunk size. Can
+                # use -1 as a wildcard.
+                return ArraySerializer(
+                    prefix_items=[
+                        IntegerSerializer()
+                        if size == -1
+                        else ConstSerializer(size)
+                        for size in self.shape
+                    ],
+                    items=False,
+                )
+            case _:
+                raise ValueError(
+                    f'Invalid shape: {self.shape}. '
+                    'Expected int or sequence of ints.'
+                )
 
     def validate(self, _) -> None:
         raise NotImplementedError(
@@ -112,36 +117,39 @@ class Chunks(Base):
         a sequence of integer sequences can be used.
     """
 
-    chunks: bool | Sequence[Sequence[int] | int] = field(kw_only=False)
+    chunks: bool | int | Sequence[int | Sequence[int]] = field(
+        default=True, kw_only=False
+    )
 
     def __post_init__(self):
-        _chunks = [
-            chunk if isinstance(chunk, _Chunk) else _Chunk(chunk)
-            for chunk in self.chunks
-        ]
-        object.__setattr__(self, 'chunks', _chunks)
+        if isinstance(self.chunks, Sequence):
+            _chunks = [
+                chunk if isinstance(chunk, _Chunk) else _Chunk(chunk)
+                for chunk in self.chunks
+            ]
+            object.__setattr__(self, 'chunks', _chunks)
 
     @cached_property
     def serializer(self) -> Serializer:
-        if not self.chunks:
-            return NullSerializer()
-        if isinstance(self.chunks, Sequence):
-            prefix_items = [chunk.serializer for chunk in self.chunks]  # type: ignore[union-attr]
-            items = False
-            min_items = max_items = len(prefix_items)
-        else:
-            # Must be `True`
-            items = ArraySerializer(items=IntegerSerializer())
-            prefix_items = None
-            min_items = max_items = None
-        return ArraySerializer(
-            prefix_items=prefix_items,
-            items=items,
-            min_items=min_items,
-            max_items=max_items,
-        )
+        match self.chunks:
+            case True:
+                return ArraySerializer(
+                    items=ArraySerializer(items=IntegerSerializer())
+                )
+            case False:
+                return NullSerializer()
+            case int():
+                return ArraySerializer(items=_Chunk(self.chunks).serializer)
+            case Sequence() if not isinstance(self.chunks, str):
+                return ArraySerializer(
+                    prefix_items=[chunk.serializer for chunk in self.chunks],  # type: ignore[union-attr]
+                    items=False,
+                )
+            case _:
+                # Should be handled by `_Chunks
+                assert_never(self.chunks)
 
-    def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
+    def validate(self, chunks: Iterable[Iterable[int]] | None) -> None:
         chunks = list(list(chunk) for chunk in chunks) if chunks else None
         return super()._validate(instance=chunks)
 
