@@ -349,13 +349,23 @@ class TypeSerializer(Serializer):
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
-class NotSerializer(Serializer):
-    not_: Serializer = field(kw_only=False)
+class AllOfSerializer(Serializer):
+    all_of: Iterable[Serializer] = field(kw_only=False)
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
+class AnyOfSerializer(Serializer):
+    any_of: Iterable[Serializer] = field(kw_only=False)
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
 class OneOfSerializer(Serializer):
     one_of: Iterable[Serializer] = field(kw_only=False)
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
+class NotSerializer(Serializer):
+    not_: Serializer = field(kw_only=False)
 
 
 def _encode_field_value(value: Any):
