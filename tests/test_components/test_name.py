@@ -19,8 +19,13 @@ class TestName:
 
     @hp.given(data=st.data())
     def test_size_match(self, data: st.DataObject):
-        min_size = data.draw(st.integers(min_value=1, max_value=10))
-        max_size = data.draw(st.integers(min_value=min_size, max_value=20))
+        min_size, max_size = data.draw(
+            st.lists(
+                st.integers(min_value=1, max_value=20),
+                min_size=2,
+                max_size=2,
+            )
+        )
         hp.assume(min_size <= max_size)
         name = data.draw(st.text(min_size=min_size, max_size=max_size))
         Name(min_size=min_size, max_size=max_size).validate(name)
