@@ -38,7 +38,7 @@ class _Chunk(Base):
     This model represents the tuple of block sizes for a single dimension, it
     is supposed to be used inside the Chunks schema.
 
-    Parameters
+    Attributes
     ----------
     shape : int | Sequence[int]
     The expected shape of the chunk. If a single ``int`` is provided, it is
@@ -107,7 +107,7 @@ class Chunks(Base):
 
     Use this model to validate the result of ``DataArray.chunks``
 
-    Parameters
+    Attributes
     ----------
     chunks : ChunksType
         If a boolean is provided, it is used to validate whether the
@@ -161,7 +161,7 @@ class Shape(Base):
 
     Use this model to validate the result of ``DataArray.shape``
 
-    Parameters
+    Attributes
     ----------
     shape : Sequence[int] | None, default None
         Expected shape of the array. The default value of ``None`` will match
@@ -213,7 +213,7 @@ class Datatype(Base):
 
     Use this model to validate the result of ``DataArray.dtype``
 
-    Parameters
+    Attributes
     ----------
     dtype : DTypeLike | None, default None
         The expected data type of the array. This can be a NumPy dtype or the
@@ -236,7 +236,7 @@ class Name(Base):
     """
     DataArray name validation model
 
-    Parameters
+    Attributes
     ----------
     name : str | Sequence[str] | None, default None
         Expected value, sequence of acceptable values, or regex pattern to
@@ -287,6 +287,28 @@ class Name(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Dims(Base):
+    """
+    DataArray dims validation model
+
+    Attributes
+    ----------
+    names : Sequence[Name | str] | None, default None
+        A sequence of expected names for the dimensions. The
+        names can either be strings or instances of the `Name` model for more
+        complex matching. The default value of ``None`` will match any names.
+    contains : Name | None, default None
+        A `Name` model describing a name schema that must be included in the
+        dimensions.
+    max_contains : int | None, default None
+        The maximum number of times the contains model can be matched.
+    min_contains : int | None, default None
+        The minimum number of times the contains model can be matched.
+    max_items : int | None, default None
+        The maximum number of dimensions.
+    min_items : int | None, default None
+        The minimum number of dimensions.
+    """
+
     names: Sequence[Name | str] | None = field(kw_only=False, default=None)
     contains: Name | None = None
     min_contains: int | None = None
@@ -328,6 +350,22 @@ class Dims(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Attr(Base):
+    """Metadata attribute key-value pair validation model
+
+    Attributes
+    ----------
+    name : str
+        The expected name of the attribute. The name can be a regex pattern if
+        the ``regex`` flag is set to ``True``.
+    value : Any | None, default None
+        The expected value of the attribute. The value can be a specific value
+         for exact matching, or a Python type for more generic matching.
+    regex : bool, default False
+        A flag to indicate that the ``name`` parameter should be treated as a
+        regex pattern.
+    required: bool, default True
+        A flag to indicate that the attribute is required.
+    """
     name: str
     regex: bool = False
     value: Any | None = None
@@ -348,6 +386,17 @@ class Attr(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Attrs(Base):
+    """Metadata validation model
+
+    Attributes
+    ----------
+    attrs : Iterable[Attr]
+        An iterable of ``Attr`` models describing the expected metadata key-value
+        pairs.
+    allow_extra_keys : bool, default True
+        A flag indicating whether keys not described by the ``attrs`` parameter
+        are allowed/disallowed.
+    """
     attrs: Iterable[Attr] = field(kw_only=False)
     allow_extra_keys: bool = True
 
