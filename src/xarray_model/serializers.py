@@ -388,12 +388,14 @@ def _decode_json_value(value: Any):
 
 def _encode_dict(data) -> dict:
     """Encode a dictionary into a JSON schema."""
+    # TODO: (mike) This is fragile and needs to be improved...
     schema = {}
     for k, v in data.items():
         if v is not None:
             schema[encode_keyword(k)] = (
                 _encode_dict(v)
                 if isinstance(v, Mapping)
+                and k not in ['properties', 'pattern_properties']
                 else _encode_field_value(v)
             )
     return schema
