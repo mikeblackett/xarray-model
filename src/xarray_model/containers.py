@@ -15,49 +15,17 @@ from xarray_model.components import (
 from xarray_model.serializers import Serializer, ObjectSerializer
 
 
-@dataclass(frozen=True, kw_only=True)
-class CoordsModel(Base):
-    title = 'Coords'
-    description = (
-        'Mapping of DataArray objects corresponding to coordinate variables.'
-    )
-    coords: Mapping[str, 'DataArrayModel'] = field(kw_only=False)
-    require_all_keys: bool = True
-    allow_extra_keys: bool = False
-
-    @cached_property
-    def serializer(self) -> Serializer:
-        return ObjectSerializer(
-            title=self.title,
-            description=self.description,
-            properties={
-                name: data_array.serializer
-                for name, data_array in self.coords.items()
-            },
-            required=list(self.coords.keys())
-            if self.require_all_keys
-            else None,
-            additional_properties=self.allow_extra_keys,
-        )
-
-    def validate(self, coords: Mapping[str, Any]) -> None:
-        instance = preprocess_data_dict(coords)
-        return super()._validate(instance=instance)
-
-
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, repr=False, kw_only=True)
 class DataArrayModel(Base):
-    title: str | None = 'xarray DataArray'
-    description: str | None = (
-        'N-dimensional array with labeled coordinates and dimensions.'
-    )
     attrs: Attrs | None = None
     chunks: Chunks | None = None
-    coords: CoordsModel | None = None
+    coords: 'CoordsModel | None' = None
+    description: str | None = None
     dims: Dims | None = None
     dtype: Datatype | None = None
     name: Name | None = None
     shape: Shape | None = None
+    title: str | None = None
 
     @cached_property
     def serializer(self) -> Serializer:
@@ -87,7 +55,35 @@ class DataArrayModel(Base):
         return super()._validate(instance=instance)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, repr=False, kw_only=True)
+class CoordsModel(Base):
+    title = 'Coords'
+    description = (
+        'Mapping of DataArray objects corresponding to coordinate variables.'
+    )
+    coords: Mapping[str, DataArrayModel] = field(kw_only=False)
+    require_all_keys: bool = True
+    allow_extra_keys: bool = False
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        return ObjectSerializer(
+            properties={
+                name: data_array.serializer
+                for name, data_array in self.coords.items()
+            },
+            required=list(self.coords.keys())
+            if self.require_all_keys
+            else None,
+            additional_properties=self.allow_extra_keys,
+        )
+
+    def validate(self, coords: Mapping[str, Any]) -> None:
+        instance = preprocess_data_dict(coords)
+        return super()._validate(instance=instance)
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
 class DataVarsModel(Base):
     data_vars: Mapping[str, 'DataArrayModel'] = field(kw_only=False)
     title = 'DataVars'
@@ -117,7 +113,7 @@ class DataVarsModel(Base):
         return super()._validate(instance=instance)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, repr=False, kw_only=True)
 class DatasetModel(Base):
     title = 'Dataset'
     description = 'A multi-dimensional, in memory, array database.'

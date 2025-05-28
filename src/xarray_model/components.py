@@ -1,7 +1,7 @@
-from collections.abc import Sequence, Hashable, Mapping
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Iterable
+from typing import Any, Iterable, assert_never
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -366,6 +366,7 @@ class Attr(Base):
     required: bool, default True
         A flag to indicate that the attribute is required.
     """
+
     name: str
     regex: bool = False
     value: Any | None = None
@@ -397,6 +398,7 @@ class Attrs(Base):
         A flag indicating whether keys not described by the ``attrs`` parameter
         are allowed/disallowed.
     """
+
     attrs: Iterable[Attr] = field(kw_only=False)
     allow_extra_keys: bool = True
 

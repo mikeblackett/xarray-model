@@ -14,9 +14,8 @@ DIALECT = 'https://json-schema.org/draft/2020-12/schema'
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Base(ABC):
-    """Base class for xarray schema models."""
+    """Base class for xarray models."""
 
-    # Class variables
     _dialect: ClassVar[str] = DIALECT
     _type: ClassVar[JSONDataType]
     _validator: ClassVar = jsonschema.Draft202012Validator
