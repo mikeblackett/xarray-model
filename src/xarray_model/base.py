@@ -12,6 +12,27 @@ from xarray_model.types import JSONDataType
 DIALECT = 'https://json-schema.org/draft/2020-12/schema'
 
 
+class ModelError(Exception):
+    """Base exception for xarray model errors."""
+
+
+class InvalidArgumentError(ModelError):
+    """Error raised when an invalid argument is encountered."""
+
+    pass
+
+
+class NotYetImplementedError(ModelError):
+    """
+    Error raised when a planned feature is not yet implemented.
+
+    This is **different** from ``NotImplementedError``, which is used when a
+    method is not implemented in a base class.
+    """
+
+    pass
+
+
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Base(ABC):
     """Base class for xarray models."""
