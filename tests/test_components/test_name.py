@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from typing import Any
 
 import hypothesis as hp
 import pytest as pt
@@ -8,59 +8,86 @@ from jsonschema import ValidationError
 from xarray_model import Name
 
 
-class TestName:
-    @hp.given(name=st.text())
-    def test_global_match(self, name: str):
-        Name().validate(name)
+@st.composite
+def names(
+    draw,
+    regex: str | None = None,
+    min_size: int = 1,
+    max_size: int | None = None,
+) -> str:
+    if regex is not None:
+        return draw(st.from_regex(regex=regex, fullmatch=True))
+    return draw(st.text(min_size=min_size, max_size=max_size))
 
-    @hp.given(name=st.text())
-    def test_string_match(self, name: str):
-        Name(name).validate(name)
+
+class TestName:
+    @hp.given(instance=names(min_size=0))
+    def test_default_validation(self, instance: str):
+        """Default values should validate with any string"""
+        Name().validate(instance)
+
+    @hp.given(instance=names())
+    def test_validates_with_strings(self, instance: str):
+        """Exact string matches should pass validation"""
+        Name(instance).validate(instance)
+
+    @hp.given(instance=names())
+    def test_invalidates_with_strings(self, instance: str):
+        """Exact string mismatches should fail validation"""
+        expected = 'expected'
+        hp.assume(expected != instance)  # probability is non-zero...!
+        with pt.raises(ValidationError):
+            Name('expected').validate(instance)
 
     @hp.given(data=st.data())
-    def test_size_match(self, data: st.DataObject):
-        min_size, max_size = data.draw(
-            st.lists(
-                st.integers(min_value=1, max_value=20),
-                min_size=2,
-                max_size=2,
-            )
-        )
-        hp.assume(min_size <= max_size)
+    def test_validates_with_sequences(self, data: st.DataObject):
+        """A sequence of strings should validate against acceptable values"""
+        expected = data.draw(st.lists(names(), min_size=1, unique=True))
+        instance = data.draw(st.sampled_from(expected))
+        Name(expected).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_invalidates_with_sequences(self, data: st.DataObject):
+        expected = data.draw(st.lists(names(), min_size=1, unique=True))
+        instance = 'instance'
+        hp.assume(instance not in expected)
+        with pt.raises(ValidationError):
+            Name(expected).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_validates_with_regex(self, data: st.DataObject):
+        """A regex pattern should validate against acceptable values"""
+        pattern = r'[a-z]+[0-9]{2}$'
+        actual = data.draw(names(regex=pattern))
+        Name(pattern, regex=True).validate(actual)
+
+    @hp.given(data=st.data())
+    def test_invalidates_with_regex(self, data: st.DataObject):
+        expected = r'[a-z]+[0-9]{2}$'
+        instance = data.draw(names(regex=r'[0-9]{2}[a-z]+$'))
+        with pt.raises(ValidationError):
+            Name(expected, regex=True).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_validates_with_size_constraints(self, data: st.DataObject):
+        min_size = data.draw(st.integers(min_value=1, max_value=10))
+        max_size = data.draw(st.integers(min_value=min_size))
         name = data.draw(st.text(min_size=min_size, max_size=max_size))
         Name(min_size=min_size, max_size=max_size).validate(name)
 
-    @pt.mark.parametrize('name', [r'[a-z]+', r'^[a-z]+$'])
     @hp.given(data=st.data())
-    def test_regex_match(self, data: st.DataObject, name: str):
-        actual = data.draw(st.from_regex(regex=name))
-        Name(name, regex=True).validate(actual)
+    def test_invalidates_with_size_constraints(self, data: st.DataObject):
+        min_size = 1
+        max_size = 5
+        name = data.draw(st.text(min_size=max_size + 1))
+        with pt.raises(ValidationError):
+            Name(min_size=min_size, max_size=max_size).validate(name)
 
-    @hp.given(
-        names=st.lists(st.text(min_size=1), min_size=1, unique=True),
-        data=st.data(),
-    )
-    def test_iterable_match(self, names: Sequence[str], data: st.DataObject):
-        actual = data.draw(st.sampled_from(names))
-        Name(names).validate(actual)
+    @pt.mark.parametrize('expected', [1, {'foo': 'bar'}])
+    def test_raises_with_invalid_args(self, expected: Any):
+        with pt.raises(AssertionError):
+            Name(expected).schema
 
     def test_raises_with_incompatible_args(self):
         with pt.raises(ValueError):
             Name(['a', 'b', 'c'], regex=True)
-
-    def test_raises_with_string_mismatch(self):
-        with pt.raises(ValidationError):
-            Name('expected').validate('expected')
-
-    def test_raises_with_size_mismatch(self):
-        with pt.raises(ValidationError):
-            Name(min_size=2, max_size=10).validate('a')
-
-    def test_raises_with_iterable_mismatch(self):
-        with pt.raises(ValidationError):
-            Name(['a', 'b', 'c']).validate('z')
-
-    def test_raises_with_regex_mismatch(self):
-        name = r'[a-z]'
-        with pt.raises(ValidationError):
-            Name(name, regex=True).validate('A')
