@@ -264,22 +264,20 @@ class Name(Base):
 
     @cached_property
     def serializer(self) -> Serializer:
-        if isinstance(self.name, Sequence) and not isinstance(self.name, str):
-            return EnumSerializer(self.name)
-        if isinstance(self.name, str):
-            if self.regex:
+        match self.name:
+            case None:
                 return StringSerializer(
-                    pattern=self.name,
                     min_length=self.min_size,
                     max_length=self.max_size,
                 )
-            else:
+            case str() if self.regex:
+                return StringSerializer(pattern=self.name)
+            case str():
                 return ConstSerializer(self.name)
-        # `name` is None
-        return StringSerializer(
-            min_length=self.min_size,
-            max_length=self.max_size,
-        )
+            case Sequence():
+                return EnumSerializer(self.name)
+            case _:
+                assert_never(self.name)
 
     def validate(self, name: str) -> None:
         return super()._validate(instance=name)
