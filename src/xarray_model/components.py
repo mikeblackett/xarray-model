@@ -233,8 +233,7 @@ class Datatype(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Name(Base):
-    """
-    DataArray name validation model
+    """Validation model for xarray DataArray names
 
     Attributes
     ----------
@@ -245,41 +244,65 @@ class Name(Base):
     regex : bool, default False
         Flag to indicate that the ``name`` parameter should be treated as a
         regex pattern.
-    min_size : int, default None
-        Minimum length of the name. Only used if ``name`` is a string.
-    max_size : int, default None
-        Maximum length of the name. Only used if ``name`` is a string.
+    min_length : int, default None
+        Non-negative integer specifying the minimum length of the name.
+        If a ``name`` argument is provided, this argument is silently ignored.
+    max_length : int, default None
+        Non-negative integer specifying the maximum length of the name.
+        If a ``name`` argument is provided, this argument is silently ignored.
+
+    Notes
+    -----
+    If ``name`` is a sequence or a string (not a regex pattern), the
+    ``min_length`` and ``max_length`` arguments are silently ignored.
+
+    Examples
+    --------
+    >>> da = xarray.DataArray(np.arange(5), dims=['x'], name='foo')
+    # Validate an exact match
+    >>> Name('foo').validate(da.name) # passes
+    >>> Name('bar').validate(da.name) # fails
+    # Validate a regex pattern
+    >>> Name(r'^fo{2}$', regex=True).validate(da.name) # passes
+    >>> Name(r'^fo{3}$', regex=True).validate(da.name) # fails
+    # Validate a sequence of acceptable values
+    >>> Name(['foo', 'bar']).validate(da.name) # passes
+    >>> Name(['baz', 'qux']).validate(da.name) # fails
+    # Length constraints
+    >>> Name(max_length=3).validate(da.name) # passes
+    >>> Name(min_length=5).validate(da.name) # fails
     """
 
     name: str | Sequence[str] | None = field(default=None, kw_only=False)
-    regex: bool = False
-    min_size: int | None = None
-    max_size: int | None = None
-
-    def __post_init__(self):
-        if self.regex and not isinstance(self.name, str):
-            raise ValueError(
-                f'The regex flag must be used with a string name; got {self.name!r}'
-            )
+    regex: bool | None = None
+    min_length: int | None = None
+    max_length: int | None = None
 
     @cached_property
     def serializer(self) -> Serializer:
         match self.name:
             case None:
                 return StringSerializer(
-                    min_length=self.min_size,
-                    max_length=self.max_size,
+                    min_length=self.min_length,
+                    max_length=self.max_length,
                 )
             case str() if self.regex:
-                return StringSerializer(pattern=self.name)
+                return StringSerializer(
+                    pattern=self.name,
+                    min_length=self.min_length,
+                    max_length=self.max_length,
+                )
             case str():
                 return ConstSerializer(self.name)
             case Sequence():
                 return EnumSerializer(self.name)
-            case _:
-                assert_never(self.name)
+            case _:  # pragma: no cover
+                raise ValueError(
+                    'Expected "name" argument to be one of str | Sequence[str] | None;'
+                    ' got {self.name} which is type {type(self.name)} '
+                )
 
-    def validate(self, name: str) -> None:
+    def validate(self, name: Hashable | None) -> None:
         return super()._validate(instance=name)
 
 

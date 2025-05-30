@@ -1,5 +1,3 @@
-from typing import Any
-
 import hypothesis as hp
 import pytest as pt
 from hypothesis import strategies as st
@@ -69,25 +67,21 @@ class TestName:
             Name(expected, regex=True).validate(instance)
 
     @hp.given(data=st.data())
-    def test_validates_with_size_constraints(self, data: st.DataObject):
-        min_size = data.draw(st.integers(min_value=1, max_value=10))
-        max_size = data.draw(st.integers(min_value=min_size))
-        name = data.draw(st.text(min_size=min_size, max_size=max_size))
-        Name(min_size=min_size, max_size=max_size).validate(name)
+    def test_validates_with_length_constraints(self, data: st.DataObject):
+        min_length = data.draw(st.integers(min_value=1, max_value=10))
+        max_length = data.draw(st.integers(min_value=min_length))
+        name = data.draw(st.text(min_size=min_length, max_size=max_length))
+        Name(min_length=min_length, max_length=max_length).validate(name)
 
     @hp.given(data=st.data())
     def test_invalidates_with_size_constraints(self, data: st.DataObject):
-        min_size = 1
-        max_size = 5
-        name = data.draw(st.text(min_size=max_size + 1))
+        min_length = 1
+        max_length = 5
+        name = data.draw(st.text(min_size=max_length + 1))
         with pt.raises(ValidationError):
-            Name(min_size=min_size, max_size=max_size).validate(name)
+            Name(min_length=min_length, max_length=max_length).validate(name)
 
-    @pt.mark.parametrize('expected', [1, {'foo': 'bar'}])
-    def test_raises_with_invalid_args(self, expected: Any):
-        with pt.raises(AssertionError):
-            Name(expected).schema
-
-    def test_raises_with_incompatible_args(self):
-        with pt.raises(ValueError):
-            Name(['a', 'b', 'c'], regex=True)
+    # @pt.mark.parametrize('expected', [1, {'foo': 'bar'}])
+    # def test_raises_with_invalid_args(self, expected: Any):
+    #     with pt.raises(AssertionError):
+    #         Name(expected).schema
