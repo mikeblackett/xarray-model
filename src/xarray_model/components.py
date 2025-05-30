@@ -7,6 +7,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 
 from xarray_model.base import Base
+from xarray_model.encoders import encode_value
 from xarray_model.serializers import (
     ArraySerializer,
     ConstSerializer,
@@ -23,7 +24,7 @@ __all__ = [
     'Attrs',
     'Attr',
     'Chunks',
-    'Datatype',
+    'DType',
     'Dims',
     'Name',
     'Shape',
@@ -313,60 +314,61 @@ class Dims(Base):
 
     Attributes
     ----------
-    names : Sequence[Name | str] | None, default None
+    dims : Sequence[str | Name] | None, default None
         A sequence of expected names for the dimensions. The
-        names can either be strings or instances of the `Name` model for more
+        names can either be strings or instances of `Name` models for more
         complex matching. The default value of ``None`` will match any names.
-    contains : Name | None, default None
-        A `Name` model describing a name schema that must be included in the
+    contains : str | Name | None, default None
+        A string or `Name` model describing a name that must be included in the
         dimensions.
-    max_contains : int | None, default None
-        The maximum number of times the contains model can be matched.
-    min_contains : int | None, default None
-        The minimum number of times the contains model can be matched.
-    max_items : int | None, default None
+    max_size : int | None, default None
         The maximum number of dimensions.
-    min_items : int | None, default None
+    min_size : int | None, default None
         The minimum number of dimensions.
+
+    See Also
+    --------
+    Name : DataArray name validation model
     """
 
-    names: Sequence[Name | str] | None = field(kw_only=False, default=None)
-    contains: Name | None = None
-    min_contains: int | None = None
-    max_contains: int | None = None
-    min_items: int | None = None
-    max_items: int | None = None
-    title: str | None = 'Dimension names'
-    description: str | None = (
-        'Tuple of dimension names associated with this array.'
-    )
+    dims: Sequence[str | Name] | None = field(kw_only=False, default=None)
+    contains: str | Name | None = None
+    max_size: int | None = None
+    min_size: int | None = None
 
-    def __post_init__(self):
-        _names = [
-            name if isinstance(name, Name) else Name(name)
-            for name in self.names
-        ]
-        object.__setattr__(self, 'names', _names)
+    def _coerce_to_name(self, name: str | Name) -> Name:
+        return name if isinstance(name, Name) else Name(name)
 
     @cached_property
     def serializer(self) -> Serializer:
         prefix_items = (
-            [name.serializer for name in self.names] if self.names else None
+            [self._coerce_to_name(name).serializer for name in self.dims]
+            if self.dims
+            else None
         )
-        items = False if prefix_items else None
-        contains = self.contains.serializer if self.contains else None
+        # All prefix items are required
+        min_items = (
+            len(prefix_items)
+            if self.min_size is None and prefix_items
+            else self.min_size
+        )
+        # Additional items are not allowed
+        items = False if prefix_items else StringSerializer()
+        contains = (
+            self._coerce_to_name(self.contains).serializer
+            if self.contains
+            else None
+        )
         return ArraySerializer(
             prefix_items=prefix_items,
             items=items,
             contains=contains,
-            min_contains=self.min_contains,
-            max_contains=self.max_contains,
-            min_items=self.min_items,
-            max_items=self.max_items,
+            max_items=self.max_size,
+            min_items=min_items,
         )
 
-    def validate(self, dims: tuple[Hashable]) -> None:
-        return super()._validate(instance=list(dims))
+    def validate(self, dims: tuple[Hashable, ...]) -> None:
+        return super()._validate(instance=encode_value(dims))
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
