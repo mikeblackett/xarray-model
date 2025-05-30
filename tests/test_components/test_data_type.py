@@ -29,18 +29,28 @@ test: DTypeLike = str
 
 @st.composite
 def dtype_likes(draw):
-    return draw(st.sampled_from(DTYPE_LIKES))
+    dtype = draw(st.sampled_from(DTYPE_LIKES))
+    if draw(st.booleans()):
+        return np.dtype(dtype)
+    return dtype
 
 
 class TestDataType:
-    @hp.given(dtype_like=dtype_likes())
-    def test_global_match(self, dtype_like: DTypeLike):
-        Datatype().validate(np.dtype(dtype_like))
+    @hp.given(dtype=dtype_likes())
+    def test_validates_with_defaults(self, dtype: DTypeLike):
+        """Should pass with default values."""
+        Datatype().validate(dtype)
 
-    @hp.given(dtype_like=dtype_likes())
-    def test_match(self, dtype_like: DTypeLike):
-        Datatype(dtype_like).validate(np.dtype(dtype_like))
+    @hp.given(dtype=dtype_likes())
+    def test_validates(self, dtype: DTypeLike):
+        """Should pass if the instance matches a dtype."""
+        Datatype(dtype).validate(dtype)
 
-    def test_mismatch(self):
+    @hp.given(data=st.data())
+    def test_invalidates(self, data: st.DataObject):
+        """Should fail if the instance does not match a dtype"""
+        expected = data.draw(dtype_likes())
+        actual = data.draw(dtype_likes())
+        hp.assume(expected != actual)
         with pt.raises(ValidationError):
-            Datatype('float').validate(np.dtype('int'))
+            Datatype(expected).validate(actual)
