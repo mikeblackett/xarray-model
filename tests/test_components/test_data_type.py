@@ -5,9 +5,9 @@ from hypothesis import strategies as st
 from jsonschema import ValidationError
 from numpy.typing import DTypeLike
 
-from xarray_model import Datatype
+from xarray_model import DType
 
-DTYPE_LIKES = [
+DTYPE_NAMES = [
     'int',
     'int8',
     'int16',
@@ -22,35 +22,65 @@ DTYPE_LIKES = [
     'datetime64',
     'timedelta64',
 ]
-DTYPES = [np.dtype(name) for name in DTYPE_LIKES]
+DTYPES = [np.dtype(name) for name in DTYPE_NAMES]
 
 test: DTypeLike = str
 
 
 @st.composite
-def dtype_likes(draw):
-    dtype = draw(st.sampled_from(DTYPE_LIKES))
-    if draw(st.booleans()):
-        return np.dtype(dtype)
-    return dtype
+def dtypes(draw) -> np.dtype:
+    return draw(st.sampled_from(DTYPES))
 
 
 class TestDataType:
-    @hp.given(dtype=dtype_likes())
-    def test_validates_with_defaults(self, dtype: DTypeLike):
-        """Should pass with default values."""
-        Datatype().validate(dtype)
-
-    @hp.given(dtype=dtype_likes())
-    def test_validates(self, dtype: DTypeLike):
-        """Should pass if the instance matches a dtype."""
-        Datatype(dtype).validate(dtype)
+    @hp.given(data=st.data())
+    def test_arguments(self, data: st.DataObject) -> None:
+        """Should always produce a valid JSON Schema"""
+        dtype = data.draw(dtypes())
+        expected_dtype = data.draw(st.sampled_from([None, dtype.name, dtype]))
+        assert DType(expected_dtype).schema
 
     @hp.given(data=st.data())
-    def test_invalidates(self, data: st.DataObject):
-        """Should fail if the instance does not match a dtype"""
-        expected = data.draw(dtype_likes())
-        actual = data.draw(dtype_likes())
-        hp.assume(expected != actual)
+    def test_validates_with_defaults(self, data: st.DataObject) -> None:
+        """Should pass with default values."""
+        dtype = data.draw(dtypes())
+        instance = data.draw(st.sampled_from([dtype, dtype.name]))
+        DType().validate(instance)
+
+    @hp.given(data=st.data())
+    def test_validates_with_dtype(self, data: st.DataObject) -> None:
+        """Should pass if the instance matches a dtype."""
+        dtype = data.draw(dtypes())
+        instance = data.draw(st.sampled_from([dtype, dtype.name]))
+        DType(dtype).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_invalidates_with_dtype(self, data: st.DataObject) -> None:
+        """Should fail if the instance does not match a dtype."""
+        expected_dtype = data.draw(dtypes())
+        instance_dtype = data.draw(dtypes())
+        hp.assume(expected_dtype != instance_dtype)
+        instance = data.draw(
+            st.sampled_from([instance_dtype, instance_dtype.name])
+        )
         with pt.raises(ValidationError):
-            Datatype(expected).validate(actual)
+            DType(expected_dtype).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_validates_with_dtype_name(self, data: st.DataObject) -> None:
+        """Should pass if the instance matches a dtype name"""
+        dtype = data.draw(dtypes())
+        instance = data.draw(st.sampled_from([dtype, dtype.name]))
+        DType(dtype.name).validate(instance)
+
+    @hp.given(data=st.data())
+    def test_invalidates_with_dtype_name(self, data: st.DataObject) -> None:
+        """Should fail if the instance does not match a dtype name"""
+        expected_dtype = data.draw(dtypes())
+        instance_dtype = data.draw(dtypes())
+        hp.assume(expected_dtype != instance_dtype)
+        instance = data.draw(
+            st.sampled_from([instance_dtype, instance_dtype.name])
+        )
+        with pt.raises(ValidationError):
+            DType(expected_dtype.name).validate(instance)

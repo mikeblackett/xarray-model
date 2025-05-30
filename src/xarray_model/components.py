@@ -208,7 +208,7 @@ class Shape(Base):
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
-class Datatype(Base):
+class DType(Base):
     """
     DataArray dtype validation model
 
@@ -226,10 +226,12 @@ class Datatype(Base):
 
     @cached_property
     def serializer(self) -> Serializer:
+        if self.dtype is None:
+            return StringSerializer()
         return ConstSerializer(self.dtype)
 
-    def validate(self, dtype: np.dtype) -> None:
-        return super()._validate(instance=dtype)
+    def validate(self, dtype: np.dtype | str) -> None:
+        return super()._validate(instance=encode_value(dtype))
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
