@@ -50,7 +50,9 @@ class Base(ABC):
 
     @cached_property
     def schema(self) -> dict[str, Any]:
-        return self.serializer.serialize()
+        schema = self.serializer.serialize()
+        self._validator.check_schema(schema=schema)
+        return schema
 
     @cached_property
     def validator(self):

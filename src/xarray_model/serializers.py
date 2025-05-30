@@ -4,11 +4,6 @@ from dataclasses import asdict, dataclass, field, fields
 from re import Pattern
 from typing import Any, Self, Type
 
-from xarray_model.checks import (
-    check_uniqueness,
-    check_non_negative,
-    check_valid_size,
-)
 from xarray_model.encoders import (
     encode_value,
     encode_keyword,
@@ -111,10 +106,6 @@ class Serializer(ABC):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class EnumSerializer(Serializer):
-    def __post_init__(self):
-        check_valid_size(self.enum, min_size=1)
-        check_uniqueness(self.enum)
-
     enum: Iterable[Any] = field(kw_only=False)
 
 
@@ -159,14 +150,6 @@ class ObjectSerializer(Serializer):
     max_properties: int | None = None
     min_properties: int | None = None
 
-    def __post_init__(self):
-        if self.min_properties is not None:
-            check_non_negative(self.min_properties)
-        if self.max_properties is not None:
-            check_non_negative(self.max_properties)
-        if self.required is not None:
-            check_uniqueness(self.required)
-
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class ArraySerializer(Serializer):
@@ -209,16 +192,6 @@ class ArraySerializer(Serializer):
     max_items: int | None = None
     min_items: int | None = None
 
-    def __post_init__(self):
-        if self.min_items is not None:
-            check_non_negative(self.min_items)
-        if self.max_items is not None:
-            check_non_negative(self.max_items)
-        if self.min_contains is not None:
-            check_non_negative(self.min_contains)
-        if self.max_contains is not None:
-            check_non_negative(self.max_contains)
-
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class StringSerializer(Serializer):
@@ -242,12 +215,6 @@ class StringSerializer(Serializer):
     min_length: int | None = None
     pattern: str | Pattern[str] | None = None
 
-    def __post_init__(self):
-        if self.min_length is not None:
-            check_non_negative(self.min_length)
-        if self.max_length is not None:
-            check_non_negative(self.max_length)
-
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class IntegerSerializer(Serializer):
@@ -255,7 +222,7 @@ class IntegerSerializer(Serializer):
 
     Attributes
     ----------
-    multiple_of : int | None, default None
+    multiple_of : int | float | None, default None
         A positive number used to restrict the instance to a multiple of a
         given number
     maximum : int | None, default None
@@ -275,10 +242,6 @@ class IntegerSerializer(Serializer):
     minimum: int | None = None
     exclusive_maximum: int | None = None
     exclusive_minimum: int | None = None
-
-    def __post_init__(self):
-        if self.multiple_of is not None:
-            check_non_negative(self.multiple_of)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -307,10 +270,6 @@ class NumberSerializer(Serializer):
     minimum: int | float | None = None
     exclusive_maximum: int | float | None = None
     exclusive_minimum: int | float | None = None
-
-    def __post_init__(self):
-        if self.multiple_of is not None:
-            check_non_negative(self.multiple_of)
 
 
 @dataclass(frozen=True, repr=False, kw_only=False)
@@ -370,6 +329,7 @@ class NotSerializer(Serializer):
 
 def _encode_field_value(value: Any):
     """Encode a Serializer field value into a JSON schema."""
+    # TODO: (mike) this is fragile...
     if isinstance(value, Serializer):
         return value.serialize()
     if isinstance(value, type):
