@@ -106,6 +106,15 @@ class Serializer(ABC):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class EnumSerializer(Serializer):
+    """Serializer for enum type
+
+    Attributes
+    ----------
+    enum : Iterable[Any]
+        An iterable describing a fixed set of acceptable values. The iterable
+        must contain at least one value and each value must be unique.
+    """
+
     enum: Iterable[Any] = field(kw_only=False)
 
 
