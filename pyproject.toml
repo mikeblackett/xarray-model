@@ -1,7 +1,7 @@
 [project]
 name = "xarray-model"
 version = "0.0.0"
-description = "Model validation for xarray objects"
+description = "A JSON Schema powered validation library for xarray objects"
 authors = [
     {name = "Mike Blackett", email = "27811528+mikeblackett@users.noreply.github.com"},
 ]
