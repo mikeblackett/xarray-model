@@ -1,12 +1,4 @@
-from .components import (
-    Attr,
-    Attrs,
-    Chunks,
-    Datatype,
-    Dims,
-    Name,
-    Shape,
-)
+from .components import Attr, Attrs, Chunks, DType, Dims, Name, Shape, Size
 from .containers import DataArrayModel, CoordsModel, DataVarsModel
 
 __all__ = [
@@ -16,8 +8,9 @@ __all__ = [
     'CoordsModel',
     'DataArrayModel',
     'DataVarsModel',
-    'Datatype',
+    'DType',
     'Dims',
     'Name',
     'Shape',
+    'Size',
 ]

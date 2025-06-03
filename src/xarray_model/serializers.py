@@ -7,9 +7,6 @@ from typing import Any, Type
 from xarray_model.encoders import (
     encode_value,
     encode_keyword,
-    decode_keyword,
-    encode_type,
-    decode_type,
 )
 
 __all__ = [
@@ -84,16 +81,17 @@ class Serializer(ABC):
         """
         return as_schema(self)
 
-    @classmethod
-    def from_schema(cls, obj: Mapping[str, Any]) -> Self:
-        kwargs = {
-            decode_keyword(f.name): _decode_json_value(
-                obj.get(encode_keyword(f.name))
-            )
-            for f in fields(cls)
-            if f.init
-        }
-        return cls(**kwargs)
+    # @classmethod
+    # def from_schema(cls, obj: Mapping[str, Any]) -> Self:
+    #     # TODO: (mike) implement `Serializer.from_schema`
+    #     kwargs = {
+    #         decode_keyword(f.name): _decode_json_value(
+    #             obj.get(encode_keyword(f.name))
+    #         )
+    #         for f in fields(cls)
+    #         if f.init
+    #     }
+    #     return cls(**kwargs)
 
     def __repr__(self):
         # repr signature with only non-default arguments
