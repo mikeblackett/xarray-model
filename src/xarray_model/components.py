@@ -77,15 +77,16 @@ class _Chunk(Base):
                     min_contains=0,
                 )
             case Sequence() if not isinstance(self.shape, str):
-                # Expect a full match of the provided shape to the chunk size. Can
-                # use -1 as a wildcard.
+                # Expect a full match of the provided shape to the chunk size.
+                # Can use -1 as a wildcard.
+                prefix_items = [
+                    IntegerSerializer()
+                    if size == -1
+                    else ConstSerializer(size)
+                    for size in self.shape
+                ]
                 return ArraySerializer(
-                    prefix_items=[
-                        IntegerSerializer()
-                        if size == -1
-                        else ConstSerializer(size)
-                        for size in self.shape
-                    ],
+                    prefix_items=prefix_items or None,
                     items=False,
                 )
             case _:
@@ -142,8 +143,14 @@ class Chunks(Base):
             case int():
                 return ArraySerializer(items=_Chunk(self.chunks).serializer)
             case Sequence() if not isinstance(self.chunks, str):
+                prefix_items = [
+                    chunk.serializer
+                    if isinstance(chunk, _Chunk)
+                    else _Chunk(chunk).serializer
+                    for chunk in self.chunks
+                ]
                 return ArraySerializer(
-                    prefix_items=[chunk.serializer for chunk in self.chunks],  # type: ignore[union-attr]
+                    prefix_items=prefix_items or None,
                     items=False,
                 )
             case _:
