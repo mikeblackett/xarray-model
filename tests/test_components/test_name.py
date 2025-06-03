@@ -4,42 +4,7 @@ from hypothesis import strategies as st
 from jsonschema import ValidationError
 
 from xarray_model import Name
-
-
-REGEX_PATTERNS = [
-    r'[A-Za-z]{3,10}',  # Letters only, 3-10 chars
-    r'\d{2,4}',  # 2-4 digits
-    r'[A-Z][a-z]+\d{2}',  # Capitalized word with 2 digits
-    r'[a-z]+[-_][a-z]+',  # Two lowercase words with dash/underscore
-    r'[A-Z0-9]{8}',  # 8 chars of uppercase letters and numbers
-    r'^TEST_[A-Z]+$',  # Uppercase word with TEST_ prefix
-    r'^[a-z]+_\d{3}$',  # Lowercase word with 3 digits suffix
-    r'^\d{2}-[A-Z]{3}$',  # 2 digits followed by 3 uppercase letters
-    r'^[A-Z][a-z]+$',  # Single capitalized word
-    r'^user_\d+$',  # Username with number
-    r'^\d{4}-[A-Z]{2}$',  # 4 digits followed by 2 uppercase letters
-    r'^[a-z]{2}\d{2}$',  # 2 lowercase letters followed by 2 digits
-    r'^v\d+\.\d+$',  # Version number format
-    r'^[A-Z]{2}_\d{4}$',  # 2 uppercase letters followed by 4 digits
-    r'^[a-z]+@test$',  # Lowercase word with @test suffix
-]
-
-
-@st.composite
-def patterns(draw: st.DrawFn) -> str:
-    return draw(st.sampled_from(REGEX_PATTERNS))
-
-
-@st.composite
-def names(
-    draw: st.DrawFn,
-    regex: str | None = None,
-    min_length: int = 0,
-    max_length: int | None = None,
-) -> str:
-    if regex is not None:
-        return draw(st.from_regex(regex=regex, fullmatch=True))
-    return draw(st.text(min_size=min_length, max_size=max_length))
+from xarray_model.testing import names, patterns
 
 
 class TestName:

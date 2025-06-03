@@ -8,32 +8,7 @@ from jsonschema import ValidationError
 from xarray_model import Chunks
 from xarray_model.components import _Chunk
 
-
-@st.composite
-def chunks(
-    draw: st.DrawFn,
-    min_value: int = 1,
-    max_value: int | None = None,
-    min_size: int = 1,
-    max_size: int | None = None,
-):
-    if max_value is None:
-        max_value = draw(st.integers(min_value=min_value + 1))
-    if max_size is None:
-        max_size = draw(st.integers(min_value=min_size + 1, max_value=4))
-    block_size = draw(st.integers(min_value=min_value, max_value=max_value))
-    multiplier = draw(st.integers(min_value=min_size, max_value=max_size))
-    size = draw(
-        st.integers(
-            min_value=block_size * min_size, max_value=block_size * multiplier
-        )
-    )
-    n = size // block_size
-    last_block = size % block_size
-    blocks = [block_size] * n
-    if last_block:
-        blocks.append(last_block)
-    return blocks
+from xarray_model.testing import chunks
 
 
 class TestChunk:

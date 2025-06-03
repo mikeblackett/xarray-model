@@ -6,23 +6,7 @@ from hypothesis import strategies as st
 from jsonschema import ValidationError
 
 from xarray_model import Shape
-
-
-@st.composite
-def shapes(
-    draw,
-    max_value: int | None = None,
-    min_value: int = 0,
-    min_size: int = 1,
-    max_size: int | None = None,
-):
-    return draw(
-        st.lists(
-            elements=st.integers(min_value=min_value, max_value=max_value),
-            min_size=min_size,
-            max_size=max_size,
-        )
-    )
+from xarray_model.testing import shapes
 
 
 class TestShape:

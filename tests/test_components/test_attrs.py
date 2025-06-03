@@ -1,29 +1,12 @@
 from typing import Any
+
 import hypothesis as hp
 import pytest as pt
 from hypothesis import strategies as st
 from jsonschema import ValidationError
 
 from xarray_model import Attr, Attrs
-from xarray_model.testing import patterns
-
-
-@st.composite
-def attrs(
-    draw,
-    min_size: int = 0,
-    max_size: int | None = None,
-) -> dict[str, Any]:
-    return draw(
-        st.dictionaries(
-            keys=st.text(min_size=1),
-            values=st.one_of(
-                st.none(), st.booleans(), st.integers(), st.floats(), st.text()
-            ),
-            min_size=min_size,
-            max_size=max_size,
-        )
-    )
+from xarray_model.testing import attrs, patterns
 
 
 class TestAttr:

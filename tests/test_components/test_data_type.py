@@ -3,33 +3,10 @@ import pytest as pt
 import numpy as np
 from hypothesis import strategies as st
 from jsonschema import ValidationError
-from numpy.typing import DTypeLike
 
 from xarray_model import DType
 
-DTYPE_NAMES = [
-    'int',
-    'int8',
-    'int16',
-    'int32',
-    'int64',
-    'float',
-    'float16',
-    'float32',
-    'float64',
-    'bool',
-    'str',
-    'datetime64',
-    'timedelta64',
-]
-DTYPES = [np.dtype(name) for name in DTYPE_NAMES]
-
-test: DTypeLike = str
-
-
-@st.composite
-def dtypes(draw) -> np.dtype:
-    return draw(st.sampled_from(DTYPES))
+from xarray_model.testing import dtypes
 
 
 class TestDataType:

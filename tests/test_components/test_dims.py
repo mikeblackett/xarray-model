@@ -4,20 +4,9 @@ import hypothesis as hp
 import pytest as pt
 from hypothesis import strategies as st
 from jsonschema import ValidationError
-from xarray_model import Dims, Name
+from xarray_model import Dims
 
-
-@st.composite
-def dims(
-    draw, min_size: int = 0, max_size: int | None = None
-) -> Sequence[str | Name]:
-    return draw(
-        st.lists(
-            elements=st.text(),
-            min_size=min_size,
-            max_size=max_size,
-        )
-    )
+from xarray_model.testing import dims
 
 
 class TestDims:
