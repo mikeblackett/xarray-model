@@ -2,12 +2,12 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields
 from functools import cached_property
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar
 
 import jsonschema
 
 from xarray_model.serializers import Serializer
-from xarray_model.types import JSONDataType
+
 
 DIALECT = 'https://json-schema.org/draft/2020-12/schema'
 
@@ -38,7 +38,6 @@ class Base(ABC):
     """Base class for xarray models."""
 
     _dialect: ClassVar[str] = DIALECT
-    _type: ClassVar[JSONDataType]
     _validator: ClassVar = jsonschema.Draft202012Validator
 
     title: str | None = None
