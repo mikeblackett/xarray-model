@@ -46,6 +46,7 @@ class DeserializationError(Exception):
 
 
 def as_schema(obj: 'Serializer') -> dict:
+    """Encode a Serializer as a JSON Schema schema"""
     return asdict(obj, dict_factory=_schema_factory)
 
 
@@ -336,41 +337,8 @@ class NotSerializer(Serializer):
     not_: Serializer = field(kw_only=False)
 
 
-def _encode_field_value(value: Any):
-    """Encode a Serializer field value into a JSON schema."""
-    # TODO: (mike) this is fragile...
-    if isinstance(value, Serializer):
-        return value.serialize()
-    if isinstance(value, type):
-        return encode_type(value)
-    return encode_value(value)
-
-
-def _decode_json_value(value: Any):
-    try:
-        # TODO: (mike) this is hacky...
-        return decode_type(value)
-    except Exception:
-        pass
-    return value
-
-
-def _encode_dict(data) -> dict:
-    """Encode a dictionary into a JSON schema."""
-    # TODO: (mike) This is fragile and needs to be improved...
-    schema = {}
-    for k, v in data.items():
-        if v is not None:
-            schema[encode_keyword(k)] = (
-                _encode_dict(v)
-                if isinstance(v, Mapping)
-                and k not in ['properties', 'pattern_properties']
-                else _encode_field_value(v)
-            )
-    return schema
-
-
-def _schema_factory(obj: 'Serializer') -> dict:
-    """Encode a serializer into a JSON schema."""
-    data = dict(obj)
-    return _encode_dict(data)
+def _schema_factory(data):
+    """Custom dict_factory for dataclasses.asdict."""
+    return {
+        encode_keyword(k): encode_value(v) for k, v in data if v is not None
+    }
