@@ -9,6 +9,7 @@ from numpy.typing import DTypeLike
 from xarray_model.base import Base
 from xarray_model.encoders import encode_value
 from xarray_model.serializers import (
+    AnySerializer,
     ArraySerializer,
     ConstSerializer,
     EnumSerializer,
@@ -408,6 +409,8 @@ class Attr(Base):
     def serializer(self) -> Serializer:
         if isinstance(self.value, type):
             return TypeSerializer(self.value)
+        if self.value is None:
+            return AnySerializer()
         return ConstSerializer(self.value)
 
     def validate(self, attr) -> None:

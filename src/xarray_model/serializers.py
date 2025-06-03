@@ -2,7 +2,7 @@ from abc import ABC
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields
 from re import Pattern
-from typing import Any, Self, Type
+from typing import Any, Type
 
 from xarray_model.encoders import (
     encode_value,
@@ -13,6 +13,7 @@ from xarray_model.encoders import (
 )
 
 __all__ = [
+    'AnySerializer',
     'ArraySerializer',
     'BooleanSerializer',
     'ConstSerializer',
@@ -308,6 +309,13 @@ class ConstSerializer(Serializer):
     """
 
     const: Any = field(kw_only=False)
+
+
+@dataclass(frozen=True, repr=False, kw_only=True)
+class AnySerializer(Serializer):
+    """Serializer for data type keyword"""
+
+    ...
 
 
 @dataclass(frozen=True, repr=False, kw_only=True)
