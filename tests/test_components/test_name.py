@@ -45,7 +45,7 @@ def names(
 class TestName:
     @hp.given(data=st.data())
     def test_arguments(self, data: st.DataObject) -> None:
-        """Should produce a valid JSON Schema with any combination of valid arguments"""
+        """Should always produce a valid JSON Schema"""
         regex = data.draw(st.one_of(st.none(), st.booleans()))
         if regex:
             name = data.draw(patterns())
@@ -116,7 +116,9 @@ class TestName:
         """Should pass if the name satisfies the length constraints"""
         min_length = data.draw(st.integers(min_value=0, max_value=100))
         max_length = data.draw(st.integers(min_value=min_length))
-        instance = data.draw(names(min_length=min_length, max_length=max_length))
+        instance = data.draw(
+            names(min_length=min_length, max_length=max_length)
+        )
         Name(min_length=min_length, max_length=max_length).validate(instance)
 
     @hp.given(data=st.data())

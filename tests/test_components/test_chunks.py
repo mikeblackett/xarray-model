@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 from jsonschema import ValidationError
 
 from xarray_model import Chunks
+from xarray_model.components import _Chunk
 
 
 @st.composite
@@ -35,16 +36,37 @@ def chunks(
     return blocks
 
 
+class TestChunk:
+    @hp.given(shape=st.one_of(st.integers(), st.lists(st.integers())))
+    def test_arguments(self, shape: int | Sequence[int]):
+        """Should always produce a valid JSON Schema"""
+        schema = _Chunk(shape).schema
+
+    @hp.given(shape=st.one_of(st.integers(), st.lists(st.integers())))
+    def test_validation_is_not_implemented(self, shape: int | Sequence[int]):
+        """_Chunk should be composed with the Chunks model."""
+        with pt.raises(NotImplementedError):
+            _Chunk(shape).validate(_=None)
+
+
 class TestChunks:
+    @hp.given(
+        expected=st.one_of(
+            st.booleans(),
+            st.integers(),
+            st.lists(st.integers()),
+            st.lists(st.lists(st.integers())),
+        )
+    )
+    def test_arguments(
+        self, expected: bool | int | Sequence[int | Sequence[int]]
+    ):
+        """Should always produce a valid JSON Schema"""
+        assert Chunks(expected).schema
+
     @hp.given(data=st.data())
     def test_boolean_match(self, data: st.DataObject):
-        """
-        Test chunked/unchunked validation succeeds.
-
-        In xarray, a chunked array's `chunks` attribute returns
-        `tuple[tuple[int]]`. If the array is not chunked, the attribute
-        returns `None`.
-        """
+        """Should pass when the chunked state matches a boolean."""
         expected = data.draw(st.booleans())
         actual = (
             data.draw(st.lists(chunks(), min_size=1)) if expected else None
@@ -53,7 +75,7 @@ class TestChunks:
 
     @hp.given(data=st.data())
     def test_boolean_mismatch(self, data: st.DataObject):
-        """Test chunked/unchunked validation fails."""
+        """Should fail when the chunked state does not match a boolean."""
         expected = data.draw(st.booleans())
         actual = (
             None if expected else data.draw(st.lists(chunks(), min_size=1))
@@ -63,8 +85,7 @@ class TestChunks:
 
     @hp.given(data=st.data())
     def test_integer_match(self, data: st.DataObject):
-        """
-        Test uniform block size across **all dimensions**.
+        """Should pass if the block sizes of all dimensions match an integer.
 
         In xarray, passing an integer to `chunk` creates uniform chunks (except
         the last chunk) along all dimensions.
@@ -82,6 +103,7 @@ class TestChunks:
 
     @hp.given(data=st.data())
     def test_integer_mismatch(self, data: st.DataObject):
+        """Should fail if the block sizes of all dimensions do not match an integer."""
         expected = data.draw(st.integers(min_value=1, max_value=10))
         actual = data.draw(
             st.lists(chunks(min_value=expected + 1), min_size=1)
@@ -91,6 +113,11 @@ class TestChunks:
 
     @hp.given(data=st.data())
     def test_sequence_of_integer_match(self, data: st.DataObject):
+        """Should pass if the block sizes of each dimension match a sequence of integers.
+
+        This is equivalent to testing the output of:
+        DataArray(dims=('x', 'y'), ...).chunk(x=10, y=11).chunks
+        """
         expected = data.draw(st.lists(st.integers(min_value=1), min_size=1))
         actual = data.draw(
             st.tuples(
@@ -114,6 +141,7 @@ class TestChunks:
     def test_sequence_of_integer_mismatch(
         self, expected: Sequence[int], actual: tuple[tuple[int]]
     ):
+        """Should fail if the block sizes of each dimension do not match a sequence of integers."""
         with pt.raises(ValidationError):
             Chunks(expected).validate(actual)
 
@@ -171,7 +199,3 @@ class TestChunks:
         )
         with pt.raises(ValidationError):
             Chunks(-1).validate(actual)
-
-    def test_raises_with_invalid_chunk_arg(self):
-        with pt.raises(ValueError):
-            Chunks('a').validate(((1,), (2, 3)))

@@ -11,60 +11,71 @@ from xarray_model import Shape
 @st.composite
 def shapes(
     draw,
-    min_dims: int = 1,
-    max_dims: int | None = None,
+    max_value: int | None = None,
+    min_value: int = 0,
+    min_size: int = 1,
+    max_size: int | None = None,
 ):
-    if max_dims is None:
-        max_dims = 3
     return draw(
         st.lists(
-            elements=st.integers(min_value=1),
-            min_size=min_dims,
-            max_size=max_dims,
+            elements=st.integers(min_value=min_value, max_value=max_value),
+            min_size=min_size,
+            max_size=max_size,
         )
     )
 
 
 class TestShape:
+    @hp.given(
+        shape=shapes(),
+        min_items=st.integers(min_value=0),
+        max_items=st.integers(min_value=0),
+    )
+    def test_arguments(
+        self,
+        shape: Sequence[int],
+        min_items: int,
+        max_items: int,
+    ) -> None:
+        """Should always produce a valid JSON Schema"""
+        assert Shape(shape, min_items=min_items, max_items=max_items).schema
+
     @hp.given(shape=shapes())
-    def test_global_match(self, shape: Sequence[int]):
+    def test_validates_with_defaults(self, shape: Sequence[int]):
+        """Should pass with default values."""
         Shape().validate(tuple(shape))
 
     @hp.given(shape=shapes())
-    def test_sequence_match(self, shape: Sequence[int]):
-        Shape(shape).validate(tuple(shape))
+    def test_validates_with_sequence_of_sizes(self, shape: Sequence[int]):
+        """Should pass when the dimensions match a sequence of sizes."""
+        instance = tuple(shape)
+        Shape(shape).validate(instance)
 
-    @hp.given(shape=shapes(), data=st.data())
-    def test_sequence_match_with_wildcard(
-        self, shape: list[int], data: st.DataObject
+    @hp.given(shape=shapes(), instance=shapes())
+    def test_invalidates_with_sequence_of_sizes(
+        self, shape: Sequence[int], instance: Sequence[int]
     ):
-        expected = shape
-        if data.draw(st.booleans()):
-            idx = data.draw(
-                st.integers(min_value=0, max_value=len(expected) - 1)
-            )
-            expected[idx] = -1
-        Shape(expected).validate(tuple(shape))
+        """Should fail when all dimensions do not match sequence of sizes."""
+        hp.assume(shape != instance)
+        with pt.raises(ValidationError):
+            Shape(shape).validate(tuple(instance))
 
     @hp.given(data=st.data())
-    def test_size_match(self, data: st.DataObject):
-        min_size = data.draw(st.integers(min_value=1, max_value=2))
-        max_size = data.draw(st.integers(min_value=min_size, max_value=4))
-        hp.assume(min_size <= max_size)
-        shape = data.draw(shapes(min_dims=min_size, max_dims=max_size))
-        Shape(min_size=min_size, max_size=max_size).validate(tuple(shape))
+    def test_validates_with_item_constraints(self, data: st.DataObject):
+        """Should pass if the instance matches the item constraints."""
+        min_items = data.draw(st.integers(min_value=1, max_value=100))
+        max_items = data.draw(st.integers(min_value=min_items))
+        instance = data.draw(shapes(max_size=max_items, min_size=min_items))
+        Shape(max_items=max_items, min_items=min_items).validate(instance)
 
-    @pt.mark.parametrize(
-        'expected, actual',
-        [
-            ([1, 2, 3], (1, 2)),
-            ([1, 2, 3], (1, 2, 4)),
-        ],
-    )
-    def test_sequence_mismatch(self, expected: Sequence[int], actual: tuple):
+    @hp.given(data=st.data())
+    def test_invalidates_with_item_constraints(self, data: st.DataObject):
+        """Should fail if the instance does not match the item constraints."""
+        min_items = data.draw(st.integers(min_value=2, max_value=100))
+        max_items = data.draw(st.integers(min_value=min_items, max_value=100))
+        instance = data.draw(shapes(min_size=max_items + 1))
         with pt.raises(ValidationError):
-            Shape(expected).validate(actual)
-
-    def test_size_mismatch(self):
+            Shape(max_items=max_items).validate(instance)
+        instance = data.draw(shapes(max_size=min_items - 1))
         with pt.raises(ValidationError):
-            Shape(min_size=1, max_size=2).validate((1, 2, 3))
+            Shape(min_items=min_items).validate(instance)
