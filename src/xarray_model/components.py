@@ -29,6 +29,7 @@ __all__ = [
     'Dims',
     'Name',
     'Shape',
+    'Size',
 ]
 
 
@@ -43,9 +44,9 @@ class _Chunk(Base):
     Attributes
     ----------
     shape : int | Sequence[int]
-    The expected shape of the chunk. If a single ``int`` is provided, it is
-    matched against the first block size in the tuple. If a ``Sequence`` is
-    provided, a full match is required.
+        The expected shape of the chunk. If a single ``int`` is provided, it is
+        matched against the first block size in the tuple. If a ``Sequence`` is
+        provided, a full match is required.
     """
 
     shape: int | Sequence[int] = field(kw_only=False)
@@ -124,14 +125,6 @@ class Chunks(Base):
         default=True, kw_only=False
     )
 
-    def __post_init__(self):
-        if isinstance(self.chunks, Sequence):
-            _chunks = [
-                chunk if isinstance(chunk, _Chunk) else _Chunk(chunk)
-                for chunk in self.chunks
-            ]
-            object.__setattr__(self, 'chunks', _chunks)
-
     @cached_property
     def serializer(self) -> Serializer:
         match self.chunks:
@@ -142,7 +135,11 @@ class Chunks(Base):
             case False:
                 return NullSerializer()
             case int():
-                return ArraySerializer(items=_Chunk(self.chunks).serializer)
+                return ArraySerializer(
+                    items=self.chunks.serializer
+                    if isinstance(self.chunks, _Chunk)
+                    else _Chunk(self.chunks).serializer
+                )
             case Sequence() if not isinstance(self.chunks, str):
                 prefix_items = [
                     chunk.serializer
@@ -154,13 +151,58 @@ class Chunks(Base):
                     prefix_items=prefix_items or None,
                     items=False,
                 )
-            case _:
-                # Should be handled by `_Chunks
-                assert_never(self.chunks)
+            case _:  # pragma: no cover
+                raise ValueError(
+                    'Invalid argument for "chunks";'
+                    ' expected one of bool | int | Sequence[int | Sequence[int]],'
+                    ' got {type(self.chunks).__name__}'
+                )
 
     def validate(self, chunks: Iterable[Iterable[int]] | None) -> None:
         chunks = list(list(chunk) for chunk in chunks) if chunks else None
         return super()._validate(instance=chunks)
+
+
+@dataclass(frozen=True, kw_only=True, repr=False)
+class Size(Base):
+    """Dimension size validation model
+
+    This model should be composed with the Shape model.
+
+    Attributes
+    ----------
+    size : int | None, default None
+        A non-negative integer specifying the expected size of the dimension.
+        The default value of ``None`` will validate any size.
+    multiple_of : int | None, default None
+        Restrict the size of the dimension to multiples of a given number.
+    maximum : int | None, default None
+        A non-negative integer specifying the maximum size of the dimension.
+    minimum : int | None, default None
+        A non-negative integer specifying the minimum size of the dimension.
+    """
+
+    size: int | None = field(default=None, kw_only=False)
+    multiple_of: int | None = None
+    maximum: int | None = None
+    minimum: int | None = None
+
+    @cached_property
+    def serializer(self) -> Serializer:
+        match self.size:
+            case None:
+                return IntegerSerializer(
+                    multiple_of=self.multiple_of,
+                    maximum=self.maximum,
+                    minimum=self.minimum,
+                )
+            case int():
+                return ConstSerializer(self.size)
+            case _:  # pragma: no cover
+                assert_never(self.size)
+
+    def validate(self, size: int) -> None:
+        return super()._validate(instance=size)
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
@@ -172,43 +214,44 @@ class Shape(Base):
 
     Attributes
     ----------
-    shape : Sequence[int] | None, default None
-        Expected shape of the array. The default value of ``None`` will match
-        any shape. An integer value of ``-1`` can be used as a wildcard.
-    min_size : int | None, default None
+    shape : Sequence[int | Size] | None, default None
+        Sequence of expected sizes for the dimensions of the array. The
+        default value of ``None`` will match any shape.
+    min_items : int | None, default None
         Minimum length of the shape sequence i.e., the number of dimensions.
-    max_size : int | None, default None
+    max_items : int | None, default None
         Maximum length of the shape sequence i.e., the number of dimensions.
     """
 
-    shape: Sequence[int] | None = field(default=None, kw_only=False)
-    min_size: int | None = None
-    max_size: int | None = None
+    shape: Sequence[int | Size] | None = field(default=None, kw_only=False)
+    min_items: int | None = None
+    max_items: int | None = None
 
     @cached_property
     def serializer(self) -> Serializer:
-        if isinstance(self.shape, Sequence):
-            prefix_items = [
-                IntegerSerializer() if size == -1 else ConstSerializer(size)
-                for size in self.shape
-            ]
-            items = None
-            min_items = (
-                len(self.shape) if self.min_size is None else self.min_size
-            )
-            max_items = (
-                len(self.shape) if self.max_size is None else self.max_size
-            )
-        else:
-            prefix_items = None
-            items = IntegerSerializer()
-            min_items = self.min_size
-            max_items = self.max_size
+        prefix_items = None
+        min_items = self.min_items
+
+        match self.shape:
+            case None:
+                items = IntegerSerializer()
+            case Sequence():
+                items = False
+                prefix_items = [
+                    size.serializer
+                    if isinstance(size, Size)
+                    else Size(size).serializer
+                    for size in self.shape
+                ]
+                min_items = len(prefix_items)
+            case _:  # pragma: no cover
+                assert_never(self.shape)
+
         return ArraySerializer(
             prefix_items=prefix_items,
             items=items,
             min_items=min_items,
-            max_items=max_items,
+            max_items=self.max_items,
         )
 
     def validate(self, shape: tuple[int, ...]) -> None:
@@ -383,24 +426,26 @@ class Dims(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Attr(Base):
-    """Metadata attribute key-value pair validation model
+    """Metadata key-value pair validation model
 
     Attributes
     ----------
-    name : str
+    key : str
         The expected name of the attribute. The name can be a regex pattern if
         the ``regex`` flag is set to ``True``.
     value : Any | None, default None
         The expected value of the attribute. The value can be a specific value
-         for exact matching, or a Python type for more generic matching.
+         for exact matching, or a Python type for more generic matching. The
+         default value of ``None`` will match any value.
     regex : bool, default False
         A flag to indicate that the ``name`` parameter should be treated as a
         regex pattern.
     required: bool, default True
-        A flag to indicate that the attribute is required.
+        A flag to indicate that the attribute is required. This attribute is
+        silently ignored if the regex flag is set to ``True``.
     """
 
-    name: str
+    key: str = field(kw_only=False)
     regex: bool = False
     value: Any | None = None
     required: bool = True
@@ -413,7 +458,7 @@ class Attr(Base):
             return AnySerializer()
         return ConstSerializer(self.value)
 
-    def validate(self, attr) -> None:
+    def validate(self, _) -> None:
         raise NotImplementedError(
             'Attr is not meant to be validated in isolation. '
             'You should compose it inside the Attrs schema.'
@@ -429,38 +474,39 @@ class Attrs(Base):
     attrs : Iterable[Attr]
         An iterable of ``Attr`` models describing the expected metadata key-value
         pairs.
-    allow_extra_keys : bool, default True
-        A flag indicating whether keys not described by the ``attrs`` parameter
-        are allowed/disallowed.
+    allow_extra_items : bool | None, default None
+        A flag indicating whether items not described by the ``attrs`` parameter
+        are allowed/disallowed. The default value of ``None`` is equivalent to
+        ``True``.
     """
 
-    attrs: Iterable[Attr] = field(kw_only=False)
-    allow_extra_keys: bool = True
-
-    title: str | None = 'Metadata'
-    description: str | None = (
-        'Dictionary storing arbitrary metadata with this array.'
-    )
+    attrs: Iterable[Attr] | None = field(default=None, kw_only=False)
+    allow_extra_items: bool | None = None
 
     @cached_property
     def serializer(self) -> Serializer:
+        if self.attrs is None:
+            return ObjectSerializer(
+                additional_properties=self.allow_extra_items
+            )
+        properties = {
+            attr.key: attr.serializer
+            for attr in self.attrs
+            if attr.value is not None and not attr.regex
+        }
         pattern_properties = {
-            attr.name: attr.serializer for attr in self.attrs if attr.regex
+            attr.key: attr.serializer for attr in self.attrs if attr.regex
         }
         required = [
-            attr.name
+            attr.key
             for attr in self.attrs
             if (attr.required and not attr.regex)
         ]
         return ObjectSerializer(
-            properties={
-                attr.name: attr.serializer
-                for attr in self.attrs
-                if not attr.regex
-            },
+            properties=properties or None,
             pattern_properties=pattern_properties or None,
             required=required or None,
-            additional_properties=self.allow_extra_keys,
+            additional_properties=self.allow_extra_items,
         )
 
     def validate(self, attrs: Mapping[str, Any]) -> None:
