@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -452,11 +453,27 @@ class Attr(Base):
 
     @cached_property
     def serializer(self) -> Serializer:
-        if isinstance(self.value, type):
-            return TypeSerializer(self.value)
-        if self.value is None:
-            return AnySerializer()
-        return ConstSerializer(self.value)
+        match self.value:
+            case type():
+                return TypeSerializer(self.value)
+            case None:
+                return AnySerializer()
+            case str():
+                return ConstSerializer(self.value)
+            case Mapping():
+                # TODO: (mike) Implement nested dict validation
+                warnings.warn(
+                    'Nested dict attribute validation is not yet implemented.'
+                )
+                return ObjectSerializer()
+            case Sequence():
+                # TODO: (mike) Implement array validation
+                warnings.warn(
+                    'Array attribute validation is not yet implemented.'
+                )
+                return ArraySerializer()
+            case _:
+                return ConstSerializer(encode_value(self.value))
 
     def validate(self, _) -> None:
         raise NotImplementedError(
@@ -490,9 +507,7 @@ class Attrs(Base):
                 additional_properties=self.allow_extra_items
             )
         properties = {
-            attr.key: attr.serializer
-            for attr in self.attrs
-            if attr.value is not None and not attr.regex
+            attr.key: attr.serializer for attr in self.attrs if not attr.regex
         }
         pattern_properties = {
             attr.key: attr.serializer for attr in self.attrs if attr.regex
@@ -510,4 +525,6 @@ class Attrs(Base):
         )
 
     def validate(self, attrs: Mapping[str, Any]) -> None:
-        return super()._validate(instance=attrs)
+        return super()._validate(
+            {k: encode_value(v) for k, v in attrs.items()}
+        )
