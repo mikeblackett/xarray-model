@@ -280,7 +280,7 @@ class DType(Base):
     def serializer(self) -> Serializer:
         if self.dtype is None:
             return StringSerializer()
-        return ConstSerializer(self.dtype)
+        return ConstSerializer(np.dtype(self.dtype))
 
     def validate(self, dtype: np.dtype | str) -> None:
         return super()._validate(instance=encode_value(dtype))
