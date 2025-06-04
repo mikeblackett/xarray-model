@@ -16,12 +16,6 @@ class ModelError(Exception):
     """Base exception for xarray model errors."""
 
 
-class InvalidArgumentError(ModelError):
-    """Error raised when an invalid argument is encountered."""
-
-    pass
-
-
 class NotYetImplementedError(ModelError):
     """
     Error raised when a planned feature is not yet implemented.
@@ -70,10 +64,16 @@ class Base(ABC):
         """Return the schema as a JSON string."""
         return json.dumps(self.schema)
 
-    @classmethod
-    def from_json(cls, schema: str) -> Self:
-        """Instantiate this model from a JSON string."""
-        return cls.from_schema(**json.loads(schema))
+    # @classmethod
+    # def from_json(cls, schema: str) -> Self:
+    #     """Instantiate this model from a JSON string."""
+    #     # TODO: implement `Base.from_schema`
+    #     return cls.from_schema(**json.loads(schema))
+
+    # @classmethod
+    # def from_xarray(cls, *args, **kwargs) -> Self:
+    #     # TODO: implement `Base.from_xarray`
+    #     ...
 
     def __repr__(self):
         # Override repr to show only non-default arguments.
