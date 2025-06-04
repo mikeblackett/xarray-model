@@ -6,34 +6,37 @@ from hypothesis import strategies as st
 from jsonschema import ValidationError
 from xarray_model import Dims
 
-from xarray_model.testing import dims
+import xarray.testing.strategies as xrst
 
 
 class TestDims:
     @hp.given(data=st.data())
     def test_arguments(self, data: st.DataObject) -> None:
         """Should always produce a valid JSON Schema"""
-        dims_ = data.draw(st.one_of(st.none(), dims()))
+        dims = data.draw(st.one_of(st.none(), xrst.dimension_names()))
         contains = data.draw(st.one_of(st.none(), st.text()))
         min_size = data.draw(st.integers(min_value=0))
         max_size = data.draw(st.integers(min_value=min_size))
         assert Dims(
-            dims_, contains=contains, max_size=max_size, min_size=min_size
+            dims, contains=contains, max_size=max_size, min_size=min_size
         ).schema
 
-    @hp.given(instance=dims())
+    @hp.given(instance=xrst.dimension_names())
     def test_validates_with_defaults(self, instance: Sequence[str]):
         """Should pass with default values."""
         Dims().validate(tuple(instance))
 
-    @hp.given(instance=dims(), flag=st.booleans())
+    @hp.given(instance=xrst.dimension_names(), flag=st.booleans())
     def test_validates_with_sequences(
         self, instance: Sequence[str], flag: bool
     ):
         """Should pass if the instance matches a sequence of names."""
         Dims(instance).validate(tuple(instance))
 
-    @hp.given(expected=dims(min_size=1), instance=dims(min_size=1))
+    @hp.given(
+        expected=xrst.dimension_names(min_dims=1),
+        instance=xrst.dimension_names(min_dims=1),
+    )
     def test_invalidates_with_sequences(
         self, expected: Sequence[str], instance: Sequence[str]
     ):
@@ -42,7 +45,7 @@ class TestDims:
         with pt.raises(ValidationError):
             Dims(expected).validate(tuple(instance))
 
-    @hp.given(instance=dims(min_size=1), data=st.data())
+    @hp.given(instance=xrst.dimension_names(min_dims=1), data=st.data())
     def test_validates_with_contains(
         self, instance: Sequence[str], data: st.DataObject
     ):
@@ -50,7 +53,7 @@ class TestDims:
         contains = data.draw(st.sampled_from(instance))
         Dims(contains=contains).validate(tuple(instance))
 
-    @hp.given(instance=dims(min_size=1), data=st.data())
+    @hp.given(instance=xrst.dimension_names(min_dims=1), data=st.data())
     def test_invalidates_with_contains(
         self, instance: Sequence[str], data: st.DataObject
     ):
@@ -66,12 +69,14 @@ class TestDims:
         min_size = data.draw(st.integers(min_value=0, max_value=10))
         max_size = data.draw(st.integers(min_value=min_size, max_value=100))
         hp.assume(min_size <= max_size)
-        actual = data.draw(dims(min_size=min_size, max_size=max_size))
+        actual = data.draw(
+            xrst.dimension_names(min_dims=min_size, max_dims=max_size)
+        )
         Dims(min_size=min_size, max_size=max_size).validate(tuple(actual))
 
     @hp.given(data=st.data())
     def test_invalidates_with_size(self, data: st.DataObject):
         """Should fail if the instance is outside the size constraints."""
-        actual = data.draw(dims(min_size=0, max_size=3))
+        actual = data.draw(xrst.dimension_names(min_dims=0, max_dims=3))
         with pt.raises(ValidationError):
             Dims(min_size=4).validate(tuple(actual))

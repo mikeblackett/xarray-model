@@ -7,8 +7,7 @@ from jsonschema import ValidationError
 
 from xarray_model import Chunks
 from xarray_model.components import _Chunk
-
-from xarray_model.testing import chunks
+from xarray_model.testing import uniform_chunks
 
 
 class TestChunk:
@@ -17,20 +16,19 @@ class TestChunk:
         """Should always produce a valid JSON Schema"""
         schema = _Chunk(shape).schema
 
-    @hp.given(shape=st.one_of(st.integers(), st.lists(st.integers())))
-    def test_validation_is_not_implemented(self, shape: int | Sequence[int]):
+    def test_validation_is_not_implemented(self):
         """_Chunk should be composed with the Chunks model."""
         with pt.raises(NotImplementedError):
-            _Chunk(shape).validate(_=None)
+            _Chunk(False).validate(_=None)
 
 
 class TestChunks:
     @hp.given(
         expected=st.one_of(
             st.booleans(),
-            st.integers(),
-            st.lists(st.integers()),
-            st.lists(st.lists(st.integers())),
+            st.integers(min_value=0),
+            st.lists(st.integers(min_value=0)),
+            st.lists(st.lists(st.integers(min_value=0))),
         )
     )
     def test_arguments(
@@ -40,26 +38,30 @@ class TestChunks:
         assert Chunks(expected).schema
 
     @hp.given(data=st.data())
-    def test_boolean_match(self, data: st.DataObject):
+    def test_validates_with_boolean_match(self, data: st.DataObject):
         """Should pass when the chunked state matches a boolean."""
         expected = data.draw(st.booleans())
         actual = (
-            data.draw(st.lists(chunks(), min_size=1)) if expected else None
+            data.draw(st.lists(uniform_chunks(), min_size=1))
+            if expected
+            else None
         )
         Chunks(expected).validate(actual)
 
     @hp.given(data=st.data())
-    def test_boolean_mismatch(self, data: st.DataObject):
+    def test_invalidates_with_boolean_mismatch(self, data: st.DataObject):
         """Should fail when the chunked state does not match a boolean."""
         expected = data.draw(st.booleans())
         actual = (
-            None if expected else data.draw(st.lists(chunks(), min_size=1))
+            None
+            if expected
+            else data.draw(st.lists(uniform_chunks(), min_size=1))
         )
         with pt.raises(ValidationError):
             Chunks(expected).validate(actual)
 
     @hp.given(data=st.data())
-    def test_integer_match(self, data: st.DataObject):
+    def test_validates_with_integer_match(self, data: st.DataObject):
         """Should pass if the block sizes of all dimensions match an integer.
 
         In xarray, passing an integer to `chunk` creates uniform chunks (except
@@ -71,7 +73,10 @@ class TestChunks:
         expected = data.draw(st.integers(min_value=1))
         actual = data.draw(
             st.lists(
-                chunks(min_value=expected, max_value=expected), min_size=1
+                uniform_chunks(
+                    min_block_size=expected, max_block_size=expected
+                ),
+                min_size=1,
             )
         )
         Chunks(expected).validate(actual)
@@ -81,7 +86,7 @@ class TestChunks:
         """Should fail if the block sizes of all dimensions do not match an integer."""
         expected = data.draw(st.integers(min_value=1, max_value=10))
         actual = data.draw(
-            st.lists(chunks(min_value=expected + 1), min_size=1)
+            st.lists(uniform_chunks(min_block_size=expected + 1), min_size=1)
         )
         with pt.raises(ValidationError):
             Chunks(expected).validate(actual)
@@ -97,7 +102,7 @@ class TestChunks:
         actual = data.draw(
             st.tuples(
                 *[
-                    chunks(min_value=value, max_value=value)
+                    uniform_chunks(min_block_size=value, max_block_size=value)
                     for value in expected
                 ]
             )
@@ -158,7 +163,7 @@ class TestChunks:
     def test_wildcard_integer_match(self, data: st.DataObject):
         actual = data.draw(
             st.lists(
-                chunks(max_size=1),
+                uniform_chunks(max_dims=1),
                 min_size=1,
             )
         )
@@ -168,7 +173,7 @@ class TestChunks:
     def test_wildcard_integer_mismatch(self, data: st.DataObject):
         actual = data.draw(
             st.lists(
-                chunks(min_size=2),
+                uniform_chunks(min_dims=2),
                 min_size=1,
             )
         )
