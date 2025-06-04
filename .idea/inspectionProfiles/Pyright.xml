@@ -247,7 +247,13 @@
       <scope name="Project Files" level="WARNING" enabled="true" />
     </inspection_tool>
     <inspection_tool class="PyStubPackagesAdvertiser" enabled="true" level="WARNING" enabled_by_default="false">
-      <scope name="Project Files" level="WARNING" enabled="true" />
+      <scope name="Project Files" level="WARNING" enabled="true">
+        <option name="ignoredPackages">
+          <list>
+            <option value="pandas-stubs==2.2.3.250527" />
+          </list>
+        </option>
+      </scope>
     </inspection_tool>
     <inspection_tool class="PyStubPackagesCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="false">
       <scope name="Project Files" level="WARNING" enabled="true" />
@@ -298,9 +304,6 @@
       <scope name="Project Files" level="WEAK WARNING" enabled="true" />
     </inspection_tool>
     <inspection_tool class="PyVulnerableApiCodeInspection" enabled="true" level="WARNING" enabled_by_default="false">
-      <scope name="Project Files" level="WARNING" enabled="true" />
-    </inspection_tool>
-    <inspection_tool class="RuffInspection" enabled="true" level="WARNING" enabled_by_default="false">
       <scope name="Project Files" level="WARNING" enabled="true" />
     </inspection_tool>
     <inspection_tool class="UvPackageVersionsInspection" enabled="true" level="WARNING" enabled_by_default="false">
