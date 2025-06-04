@@ -71,6 +71,11 @@ def _(value: type) -> str:
     return _encode_type(value)
 
 
+@encode_value.register
+def _(value: np.ndarray) -> list:
+    return value.tolist()
+
+
 def _encode_type(type_: Type) -> str:
     if issubclass(type_, str):
         return 'string'
@@ -83,6 +88,8 @@ def _encode_type(type_: Type) -> str:
     elif issubclass(type_, Mapping):
         return 'object'
     elif issubclass(type_, Sequence) and not issubclass(type_, str):
+        return 'array'
+    elif issubclass(type_, np.ndarray):
         return 'array'
     elif issubclass(type_, NoneType):
         return 'null'
