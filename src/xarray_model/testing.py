@@ -1,29 +1,8 @@
-from typing import Any, Sequence
 import hypothesis as hp
+import numpy as np
+import xarray.testing.strategies as xrst
 from hypothesis import strategies as st
 
-import numpy as np
-
-from xarray_model.components import Name
-
-
-DTYPE_NAMES = [
-    'int',
-    'int8',
-    'int16',
-    'int32',
-    'int64',
-    'float',
-    'float16',
-    'float32',
-    'float64',
-    'bool',
-    'str',
-    'datetime64',
-    'timedelta64',
-]
-
-DTYPES = [np.dtype(name) for name in DTYPE_NAMES]
 
 REGEX_PATTERNS = [
     r'[A-Za-z]{3,10}',  # Letters only, 3-10 chars
@@ -45,18 +24,58 @@ REGEX_PATTERNS = [
 
 
 @st.composite
+def supported_dtype_likes(
+    draw: st.DrawFn,
+    dtype: np.dtype | None = None,
+) -> np.dtype | str | type | None:
+    """Generate only those numpy DTypeLike that xarray can handle.
+
+    See @https://numpy.org/doc/stable/reference/arrays.dtypes.html to know what
+    can be converted to a data-type object.
+
+    If a dtype is provided, then only those values that are compatible with
+    the dtype will be returned.
+    """
+    if dtype is not None:
+        return draw(
+            st.sampled_from(
+                [
+                    # string
+                    dtype.name,
+                    # array-protocol typestring
+                    dtype.str,
+                    # One-character strings
+                    dtype.char,
+                    # dtype
+                    dtype,
+                ],
+            )
+        )
+    _dtype_strategy = xrst.supported_dtypes()
+    return draw(
+        st.sampled_from(
+            [
+                draw(st.none()),
+                # string
+                draw(_dtype_strategy).name,
+                # array-protocol typestring
+                draw(_dtype_strategy).str,
+                # One-character strings
+                draw(_dtype_strategy).char,
+                # dtype
+                draw(_dtype_strategy),
+                # Built-in types
+                draw(
+                    st.sampled_from([int, float, bool, str, complex]),
+                ),
+            ],
+        )
+    )
+
+
+@st.composite
 def patterns(draw: st.DrawFn) -> str:
     return draw(st.sampled_from(REGEX_PATTERNS))
-
-
-@st.composite
-def positive_integers(draw, max_value: int | None = None) -> int:
-    return draw(st.integers(min_value=1, max_value=max_value))
-
-
-@st.composite
-def non_negative_integers(draw, max_value: int | None = None) -> int:
-    return draw(st.integers(min_value=0, max_value=max_value))
 
 
 @st.composite
@@ -72,69 +91,42 @@ def multiples_of(
 
 
 @st.composite
-def names(
-    draw: st.DrawFn,
-    regex: str | None = None,
-    min_length: int = 0,
-    max_length: int | None = None,
-) -> str:
-    if regex is not None:
-        return draw(st.from_regex(regex=regex, fullmatch=True))
-    return draw(st.text(min_size=min_length, max_size=max_length))
-
-
-@st.composite
-def shapes(
+def dimension_shapes(
     draw,
-    max_value: int | None = None,
-    min_value: int = 0,
-    min_size: int = 1,
-    max_size: int | None = None,
-):
-    return draw(
-        st.lists(
-            elements=st.integers(min_value=min_value, max_value=max_value),
-            min_size=min_size,
-            max_size=max_size,
-        )
+    min_dims: int = 1,
+    max_dims: int = 5,
+    min_side: int = 0,
+    max_side: int | None = None,
+) -> tuple[int, ...]:
+    return tuple(
+        draw(
+            xrst.dimension_sizes(
+                min_dims=min_dims,
+                max_dims=max_dims,
+                min_side=min_side,
+                max_side=max_side,
+            )
+        ).values()
     )
 
 
 @st.composite
-def dims(
-    draw, min_size: int = 0, max_size: int | None = None
-) -> Sequence[str | Name]:
-    return draw(
-        st.lists(
-            elements=st.text(),
-            min_size=min_size,
-            max_size=max_size,
-        )
-    )
-
-
-@st.composite
-def dtypes(draw) -> np.dtype:
-    return draw(st.sampled_from(DTYPES))
-
-
-@st.composite
-def chunks(
+def uniform_chunks(
     draw: st.DrawFn,
-    min_value: int = 1,
-    max_value: int | None = None,
-    min_size: int = 1,
-    max_size: int | None = None,
+    min_block_size: int = 1,
+    max_block_size: int | None = None,
+    min_dims: int = 1,
+    max_dims: int = 10,
 ):
-    if max_value is None:
-        max_value = draw(st.integers(min_value=min_value + 1))
-    if max_size is None:
-        max_size = draw(st.integers(min_value=min_size + 1, max_value=4))
-    block_size = draw(st.integers(min_value=min_value, max_value=max_value))
-    multiplier = draw(st.integers(min_value=min_size, max_value=max_size))
+    if max_block_size is None:
+        max_block_size = draw(st.integers(min_value=min_block_size + 1))
+    block_size = draw(
+        st.integers(min_value=min_block_size, max_value=max_block_size)
+    )
+    multiplier = draw(st.integers(min_value=min_dims, max_value=max_dims))
     size = draw(
         st.integers(
-            min_value=block_size * min_size, max_value=block_size * multiplier
+            min_value=block_size * min_dims, max_value=block_size * multiplier
         )
     )
     n = size // block_size
@@ -143,21 +135,3 @@ def chunks(
     if last_block:
         blocks.append(last_block)
     return blocks
-
-
-@st.composite
-def attrs(
-    draw,
-    min_size: int = 0,
-    max_size: int | None = None,
-) -> dict[str, Any]:
-    return draw(
-        st.dictionaries(
-            keys=st.text(min_size=1),
-            values=st.one_of(
-                st.none(), st.booleans(), st.integers(), st.floats(), st.text()
-            ),
-            min_size=min_size,
-            max_size=max_size,
-        )
-    )
