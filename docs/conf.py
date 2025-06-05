@@ -17,10 +17,6 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    # Third-party
-    'sphinx_copybutton',
-    'sphinx_autodoc_typehints',
-    'autodocsumm',
 ]
 
 source_suffix = ['.rst', '.md']
