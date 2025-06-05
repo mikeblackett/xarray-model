@@ -2,13 +2,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 
-import xarray_model
-
 project = 'xarray-model'
 copyright = '2025, Mike Blackett'
 author = 'Mike Blackett'
-release = xarray_model.__version__
-version = xarray_model.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
