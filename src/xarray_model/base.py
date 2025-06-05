@@ -4,9 +4,9 @@ from dataclasses import dataclass, fields
 from functools import cached_property
 from typing import Any, ClassVar
 
-import jsonschema
 
 from xarray_model.serializers import Serializer
+from xarray_model.validators import XarrayModelValidator
 
 
 DIALECT = 'https://json-schema.org/draft/2020-12/schema'
@@ -17,19 +17,12 @@ class ModelError(Exception):
 
 
 class NotYetImplementedError(ModelError):
-    """
-    Error raised when a planned feature is not yet implemented.
-
-    This is **different** from ``NotImplementedError``, which is used when a
-    method is not implemented in a base class.
-    """
-
-    pass
+    """Error raised when a planned feature is not yet implemented."""
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Base(ABC):
-    """Base class for xarray models."""
+    """Base class for xarray validations models."""
 
     _dialect: ClassVar[str] = DIALECT
     """The version of JSON Schema used by this model."""
@@ -41,10 +34,13 @@ class Base(ABC):
 
     @cached_property
     @abstractmethod
-    def serializer(self) -> Serializer: ...
+    def serializer(self) -> Serializer:
+        """The serializer for this schema."""
+        raise NotImplementedError
 
     @cached_property
     def schema(self) -> dict[str, Any]:
+        """The JSON Schema schema for this model."""
         schema = self.serializer.serialize()
         self._validator.check_schema(schema=schema)
         return schema
@@ -55,11 +51,19 @@ class Base(ABC):
         return self._validator(schema=self.schema)
 
     def _validate(self, instance: Any) -> None:
+        """Validate an instance against this schema.
+
+        Subclasses should normally call this method in their `validate` method.
+        """
         return self.validator.validate(instance=instance)
 
     @abstractmethod
     def validate(self, *args, **kwargs) -> None:
-        """Validate an object against this schema."""
+        """Validate an instance against this schema.
+
+        Subclasses should implement this method and perform any necessary
+        preprocessing of arguments before passing to `_validate`.
+        """
         ...
 
     def to_json(self) -> str:
@@ -78,7 +82,7 @@ class Base(ABC):
     #     ...
 
     def __repr__(self):
-        # Override repr to show only non-default arguments.
+        # Show only non-default arguments...
         args = [
             (f.name, getattr(self, f.name))
             for f in fields(self)

@@ -1,8 +1,9 @@
+from typing_extensions import assert_never
 import warnings
 from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Iterable, assert_never
+from typing import Any, Iterable
 
 import numpy as np
 from numpy.typing import DTypeLike
@@ -41,13 +42,6 @@ class _Chunk(Base):
 
     This model represents the tuple of block sizes for a single dimension, it
     is supposed to be used inside the Chunks schema.
-
-    Attributes
-    ----------
-    shape : int | Sequence[int]
-        The expected shape of the chunk. If a single ``int`` is provided, it is
-        matched against the first block size in the tuple. If a ``Sequence`` is
-        provided, a full match is required.
     """
 
     shape: int | Sequence[int] = field(kw_only=False)
@@ -57,7 +51,6 @@ class _Chunk(Base):
         match self.shape:
             case -1:
                 # `-1` is a dask wildcard meaning "use the full dimension size."
-                # Expect a length 1 array of integers.
                 return ArraySerializer(
                     items=IntegerSerializer(), min_items=1, max_items=1
                 )
@@ -107,19 +100,42 @@ class _Chunk(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Chunks(Base):
-    """
-    DataArray chunks validation model
-
-    Use this model to validate the result of ``DataArray.chunks``
+    """A validation model for DataArray chunks.
 
     Attributes
     ----------
-    chunks : ChunksType
-        If a boolean is provided, it is used to validate whether the
-        ``DataArray`` is chunked or not. To validate the actual block sizes, a
-        sequence of chunk sizes can be provided. A sequence of integers is used
-        to represent an expected uniform chunk size. To perform an exact match,
-        a sequence of integer sequences can be used.
+    chunks : bool | int | Sequence[int | Sequence[int]], default True
+        The expected chunk sizes along each dimension. The validation logic depends on the argument type:
+        - A boolean simply validates whether the array is chunked or not;
+        - An positive integer validates that **all** dimensions have the same uniform chunk size (all but the last chunk are equal to ``chunks``);
+        - A sequence of positive integers validates that each dimension has the specified uniform chunk size;
+        - A sequence of sequences of positive integers validates exact chunk sizes along each dimension.
+        - A value of ``-1`` can be used in place of a positive integer to validate no chunking along a dimension.
+
+    Examples
+    --------
+    # Boolean matching
+    >>> da = xr.DataArray(np.random.rand(5, 4), dims=['x', 'y'])
+    >>> xm.Chunks(False).validate(da.chunks)
+
+    >>> da = da.chunk('auto')
+    >>> xm.Chunks(True).validate(da.chunks)
+
+    # Integer matching (all dimensions have the same chunk size)
+    >>> da = da.chunk(2)
+    >>> xm.Chunks(2).validate(da.chunks)
+    >>> xm.Chunks((2, 2)).validate(da.chunks)
+    >>> xm.Chunks(((2, 2, 1), (2, 2))).validate(da.chunks) # Exact chunk sizes
+
+    # Integer matching
+    >>> da = da.chunk(x=3, y=2)
+    >>> xm.Chunks((3, 2)).validate(da.chunks)
+    >>> xm.Chunks(((3, 2), (2, 2))).validate(da.chunks) # Exact chunk sizes
+
+    # Integer matching with wildcard
+    >>> da = da.chunk(x=-1, y=2)
+    >>> xm.Chunks((-1, 2)).validate(da.chunks)
+    >>> xm.Chunks((-1, (2, 2))).validate(da.chunks)
     """
 
     chunks: bool | int | Sequence[int | Sequence[int]] = field(
@@ -153,11 +169,7 @@ class Chunks(Base):
                     items=False,
                 )
             case _:  # pragma: no cover
-                raise ValueError(
-                    'Invalid argument for "chunks";'
-                    ' expected one of bool | int | Sequence[int | Sequence[int]],'
-                    ' got {type(self.chunks).__name__}'
-                )
+                assert_never(self.chunks)
 
     def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
         return super()._validate(instance=chunks)
@@ -165,7 +177,7 @@ class Chunks(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Size(Base):
-    """Dimension size validation model
+    """A validation model for DataArray dimension size.
 
     This model should be composed with the Shape model.
 
@@ -207,10 +219,7 @@ class Size(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Shape(Base):
-    """
-    DataArray shape validation model
-
-    Use this model to validate the result of ``DataArray.shape``
+    """A validation model for DataArray shape.
 
     Attributes
     ----------
@@ -221,6 +230,15 @@ class Shape(Base):
         Minimum length of the shape sequence i.e., the number of dimensions.
     max_items : int | None, default None
         Maximum length of the shape sequence i.e., the number of dimensions.
+
+    Examples
+    --------
+    >>> da = xr.DataArray(np.random.rand(5, 4), dims=['x', 'y'])
+
+    >>> xm.Shape([5, 4]).validate(da.shape)
+    >>> xm.Shape(min_items=1, max_items=2).validate(da.shape)
+    >>> xm.Shape([xm.Size(5), xm.Size(4)]).validate(da.shape)
+    >>> xm.Shape([xm.Size(maximum=5), xm.Size(multiple_of=2)]).validate(da.shape)
     """
 
     shape: Sequence[int | Size] | None = field(default=None, kw_only=False)
@@ -260,16 +278,23 @@ class Shape(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class DType(Base):
-    """
-    DataArray dtype validation model
-
-    Use this model to validate the result of ``DataArray.dtype``
+    """A validation model for DataArray dtype.
 
     Attributes
     ----------
     dtype : DTypeLike | None, default None
-        The expected data type of the array. This can be a NumPy dtype or the
-        name of a dtype. The default value of ``None`` will match any dtype.
+        The expected data type of the array. This can be any dtype-like value
+        accepted by `numpy.dtype`. The default value of ``None`` will match
+        any dtype.
+
+    Examples
+    --------
+    >>> da = xr.DataArray(np.ones((5,))).astype('int16')
+
+    >>> xm.DType('int16').validate(da.dtype)
+    >>> xm.DType(np.int16).validate(da.dtype)
+    >>> xm.DType(np.dtype('int16')).validate(da.dtype)
+    >>> xm.DType('<i2').validate(da.dtype)
     """
 
     # TODO: (mike) support numpy subdytpes
@@ -281,13 +306,13 @@ class DType(Base):
             return StringSerializer()
         return ConstSerializer(np.dtype(self.dtype))
 
-    def validate(self, dtype: np.dtype | str) -> None:
+    def validate(self, dtype: np.dtype) -> None:
         return super()._validate(instance=encode_value(dtype))
 
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Name(Base):
-    """Validation model for xarray DataArray names
+    """Validation model for DataArray name.
 
     Attributes
     ----------
@@ -300,31 +325,20 @@ class Name(Base):
         regex pattern.
     min_length : int, default None
         Non-negative integer specifying the minimum length of the name.
-        If a ``name`` argument is provided, this argument is silently ignored.
     max_length : int, default None
         Non-negative integer specifying the maximum length of the name.
-        If a ``name`` argument is provided, this argument is silently ignored.
-
-    Notes
-    -----
-    If ``name`` is a sequence or a string (not a regex pattern), the
-    ``min_length`` and ``max_length`` arguments are silently ignored.
 
     Examples
     --------
     >>> da = xarray.DataArray(np.arange(5), dims=['x'], name='foo')
     # Validate an exact match
-    >>> Name('foo').validate(da.name) # passes
-    >>> Name('bar').validate(da.name) # fails
+    >>> Name('foo').validate(da.name)
     # Validate a regex pattern
-    >>> Name(r'^fo{2}$', regex=True).validate(da.name) # passes
-    >>> Name(r'^fo{3}$', regex=True).validate(da.name) # fails
+    >>> Name(r'^fo{2}$', regex=True).validate(da.name)
     # Validate a sequence of acceptable values
-    >>> Name(['foo', 'bar']).validate(da.name) # passes
-    >>> Name(['baz', 'qux']).validate(da.name) # fails
+    >>> Name(['foo', 'bar']).validate(da.name)
     # Length constraints
-    >>> Name(max_length=3).validate(da.name) # passes
-    >>> Name(min_length=5).validate(da.name) # fails
+    >>> Name(min_length=3).validate(da.name)
     """
 
     name: str | Sequence[str] | None = field(default=None, kw_only=False)
@@ -351,10 +365,7 @@ class Name(Base):
             case Sequence():
                 return EnumSerializer(self.name)
             case _:  # pragma: no cover
-                raise ValueError(
-                    'Expected "name" argument to be one of str | Sequence[str] | None;'
-                    ' got {self.name} which is type {type(self.name)} '
-                )
+                assert_never(self.name)
 
     def validate(self, name: Hashable | None) -> None:
         return super()._validate(instance=name)
@@ -362,15 +373,14 @@ class Name(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Dims(Base):
-    """
-    DataArray dims validation model
+    """Validation model for DataArray dimensions.
 
     Attributes
     ----------
     dims : Sequence[str | Name] | None, default None
         A sequence of expected names for the dimensions. The
         names can either be strings or instances of `Name` models for more
-        complex matching. The default value of ``None`` will match any names.
+        complex matching. The default value of ``None`` will match any sequence.
     contains : str | Name | None, default None
         A string or `Name` model describing a name that must be included in the
         dimensions.
@@ -382,6 +392,15 @@ class Dims(Base):
     See Also
     --------
     Name : DataArray name validation model
+
+    Examples
+    --------
+    >>> da = xr.DataArray(np.random.rand(5, 4), dims=['foo', 'bar'])
+
+    >>> xm.Dims(['foo', 'bar']).validate(da.dims)
+    >>> xm.Dims([Name('^[a-z]+$', regex=True), 'bar']).validate(da.dims)
+    >>> xm.Dims(constains='foo').validate(da.dims)
+    >>> xm.Dims(max_size=2).validate(da.dims)
     """
 
     dims: Sequence[str | Name] | None = field(kw_only=False, default=None)
@@ -426,7 +445,7 @@ class Dims(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Attr(Base):
-    """Metadata key-value pair validation model
+    """Validation model for DataArray metadata attribute key-value pair.
 
     Attributes
     ----------
@@ -443,6 +462,10 @@ class Attr(Base):
     required: bool, default True
         A flag to indicate that the attribute is required. This attribute is
         silently ignored if the regex flag is set to ``True``.
+
+    See Also
+    --------
+    Attrs : DataArray metadata attribute validation model
     """
 
     key: str = field(kw_only=False)
@@ -483,7 +506,7 @@ class Attr(Base):
 
 @dataclass(frozen=True, kw_only=True, repr=False)
 class Attrs(Base):
-    """Metadata validation model
+    """Validation model for DataArray metadata attributes.
 
     Attributes
     ----------
@@ -494,6 +517,16 @@ class Attrs(Base):
         A flag indicating whether items not described by the ``attrs`` parameter
         are allowed/disallowed. The default value of ``None`` is equivalent to
         ``True``.
+
+    Examples
+    --------
+    >>> da = xr.DataArray(np.random.rand(5), attrs={'foo': 'bar', 'baz': 42})
+
+    >>> xm.Attrs([Attr(key='foo')]).validate(da.attrs)
+    >>> xm.Attrs([Attr(key='qux', required=False)]).validate(da.attrs)
+    >>> xm.Attrs([Attr(key='baz', value=42)]).validate(da.attrs)
+    >>> xm.Attrs([Attr(key='baz', value=int)]).validate(da.attrs)
+    >>> xm.Attrs([Attr(key='foo'), Attr(key='baz')], allow_extra_items=False).validate(da.attrs)
     """
 
     attrs: Iterable[Attr] | None = field(default=None, kw_only=False)
