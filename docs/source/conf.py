@@ -6,17 +6,18 @@ project = 'xarray-model'
 copyright = '2025, Mike Blackett'
 author = 'Mike Blackett'
 
+release = '0.0'
+version = '0.0.0'
+
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # Core extensions
-    'sphinx.ext.autodoc',
+    'sphinx.ext.duration',
     'sphinx.ext.doctest',
-    'sphinx.ext.extlinks',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
 ]
 
 source_suffix = ['.rst', '.md']
