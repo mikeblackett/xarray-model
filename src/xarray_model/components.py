@@ -159,8 +159,7 @@ class Chunks(Base):
                     ' got {type(self.chunks).__name__}'
                 )
 
-    def validate(self, chunks: Iterable[Iterable[int]] | None) -> None:
-        chunks = list(list(chunk) for chunk in chunks) if chunks else None
+    def validate(self, chunks: tuple[tuple[int, ...], ...] | None) -> None:
         return super()._validate(instance=chunks)
 
 

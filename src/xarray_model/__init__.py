@@ -1,3 +1,5 @@
+# TODO: (mike) Custom error messages
+
 from .components import Attr, Attrs, Chunks, DType, Dims, Name, Shape, Size
 from .containers import DataArrayModel, CoordsModel, DataVarsModel
 

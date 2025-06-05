@@ -32,7 +32,9 @@ class Base(ABC):
     """Base class for xarray models."""
 
     _dialect: ClassVar[str] = DIALECT
-    _validator: ClassVar = jsonschema.Draft202012Validator
+    """The version of JSON Schema used by this model."""
+    _validator: ClassVar = XarrayModelValidator
+    """The JSON Schema validator class used by this model."""
 
     title: str | None = None
     description: str | None = None
