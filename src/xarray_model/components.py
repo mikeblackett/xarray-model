@@ -384,9 +384,9 @@ class Dims(Base):
     contains : str | Name | None, default None
         A string or `Name` model describing a name that must be included in the
         dimensions.
-    max_size : int | None, default None
+    max_dims : int | None, default None
         The maximum number of dimensions.
-    min_size : int | None, default None
+    min_dims : int | None, default None
         The minimum number of dimensions.
 
     See Also
@@ -405,8 +405,8 @@ class Dims(Base):
 
     dims: Sequence[str | Name] | None = field(kw_only=False, default=None)
     contains: str | Name | None = None
-    max_size: int | None = None
-    min_size: int | None = None
+    max_dims: int | None = None
+    min_dims: int | None = None
 
     def _coerce_to_name(self, name: str | Name) -> Name:
         return name if isinstance(name, Name) else Name(name)
@@ -421,8 +421,8 @@ class Dims(Base):
         # All prefix items are required
         min_items = (
             len(prefix_items)
-            if self.min_size is None and prefix_items
-            else self.min_size
+            if self.min_dims is None and prefix_items
+            else self.min_dims
         )
         # Additional items are not allowed
         items = False if prefix_items else StringSerializer()
@@ -435,7 +435,7 @@ class Dims(Base):
             prefix_items=prefix_items,
             items=items,
             contains=contains,
-            max_items=self.max_size,
+            max_items=self.max_dims,
             min_items=min_items,
         )
 
