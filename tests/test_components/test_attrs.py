@@ -185,3 +185,11 @@ class TestAttrs:
         expected = [Attr(key, value=expected_type)]
         with pt.raises(ValidationError):
             Attrs(expected).validate(instance)
+
+    # Corner cases
+    @hp.given(instance=attrs(min_items=1))
+    def test_duplicate_keys(self, instance: dict):
+        """Should handle Attrs with duplicate keys"""
+        key, value = next(iter(instance.items()))
+        expected = [Attr(key), Attr(key, value=value)]
+        Attrs(expected).validate(instance)

@@ -544,11 +544,11 @@ class Attrs(Base):
         pattern_properties = {
             attr.key: attr.serializer for attr in self.attrs if attr.regex
         }
-        required = [
+        required = {
             attr.key
             for attr in self.attrs
             if (attr.required and not attr.regex)
-        ]
+        }
         return ObjectSerializer(
             properties=properties or None,
             pattern_properties=pattern_properties or None,

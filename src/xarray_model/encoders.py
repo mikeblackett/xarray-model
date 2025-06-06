@@ -57,6 +57,11 @@ def _(value: Sequence) -> list:
 
 
 @encode_value.register
+def _(value: set) -> list:
+    return list(value)
+
+
+@encode_value.register
 def _(value: np.dtype) -> str:
     return value.name
 
