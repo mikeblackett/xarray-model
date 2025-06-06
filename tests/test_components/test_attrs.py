@@ -4,10 +4,9 @@ import hypothesis as hp
 import pytest as pt
 from hypothesis import strategies as st
 from jsonschema import ValidationError
-from xarray.testing.strategies import attrs
 
 from xarray_model import Attr, Attrs
-from xarray_model.testing import patterns
+from xarray_model.testing import attrs, patterns
 
 
 class TestAttr:
@@ -40,10 +39,20 @@ class TestAttr:
 
 
 class TestAttrs:
-    @hp.given(attrs_=attrs(), allow_extra_items=st.booleans())
-    def test_arguments(self, attrs_: dict, allow_extra_items: bool):
+    @hp.given(attrs_=attrs(), allow_extra_items=st.booleans(), data=st.data())
+    def test_arguments(
+        self, attrs_: dict, allow_extra_items: bool, data: st.DataObject
+    ):
         """Should always produce a valid JSON Schema"""
-        expected = [Attr(key, value=value) for key, value in attrs_.items()]
+        expected = [
+            Attr(
+                key,
+                value=value if data.draw(st.booleans()) else type(value),
+                required=data.draw(st.booleans()),
+                regex=data.draw(st.booleans()),
+            )
+            for key, value in attrs_.items()
+        ]
         assert Attrs(expected, allow_extra_items=allow_extra_items).schema
 
     @hp.given(instance=attrs())
@@ -56,17 +65,16 @@ class TestAttrs:
         """Should pass if the instance is not empty and extra items are allowed."""
         Attrs(allow_extra_items=True).validate(instance)
 
-    @hp.given(instance=attrs())
+    @hp.given(instance=attrs(min_items=1))
     def test_invalidates_with_extra_keys(self, instance: dict):
         """Should fail if the instance is not empty and extra items are not allowed."""
-        hp.assume(len(instance) > 0)
+        print(instance)
         with pt.raises(ValidationError):
             Attrs(allow_extra_items=False).validate(instance)
 
-    @hp.given(instance=attrs(), required=st.booleans())
+    @hp.given(instance=attrs(min_items=1), required=st.booleans())
     def test_validates_with_key_match(self, instance: dict, required: bool):
         """Should pass if the instance contains an optional or required key."""
-        hp.assume(len(instance) > 0)
         key = next(iter(instance.keys()))
         expected = [Attr(key, required=required)]
         Attrs(expected).validate(instance)
@@ -88,10 +96,9 @@ class TestAttrs:
         with pt.raises(ValidationError):
             Attrs(expected).validate(instance)
 
-    @hp.given(instance=attrs())
+    @hp.given(instance=attrs(min_items=1))
     def test_validates_with_required_keys(self, instance: dict):
         """Should pass if the instance contains the required key."""
-        hp.assume(len(instance) > 0)
         key = next(iter(instance.keys()))
         expected = [Attr(key)]
         Attrs(expected).validate(instance)
@@ -115,33 +122,30 @@ class TestAttrs:
         instance |= {key: 'value'}
         Attrs(expected).validate(instance)
 
-    @hp.given(instance=attrs())
+    @hp.given(instance=attrs(min_items=1))
     def test_invalidates_with_key_pattern_mismatch(self, instance: dict):
         """Should fail if the instance contains a key that does not match the specified pattern."""
-        hp.assume(len(instance) > 0)
         expected = [Attr(key=r'^expected$', regex=True)]
         with pt.raises(ValidationError):
             # The ``required`` attribute doesn't apply to pattern properties,
             # so we need to apply `allow_extra_items=False`
             Attrs(expected, allow_extra_items=False).validate(instance)
 
-    @hp.given(instance=attrs(), data=st.data())
+    @hp.given(instance=attrs(min_items=1), data=st.data())
     def test_validates_with_value_match(
         self, instance: dict, data: st.DataObject
     ):
         """Should pass if the instance contains the specified key-value pair."""
-        hp.assume(len(instance) > 0)
         key, value = next(iter(instance.items()))
         expected = [Attr(key, value=value)]
         Attrs(expected).validate(instance)
 
-    @hp.given(instance=attrs(), data=st.data())
+    @hp.given(instance=attrs(min_items=1), data=st.data())
     def test_invalidates_with_value_mismatch(
         self, instance: dict, data: st.DataObject
     ):
         """Should fail if the instance does not contain the specified key-value pair."""
         # TODO: (mike) fix None values...
-        hp.assume(len(instance) > 0)
         key, value = next(iter(instance.items()))
         expected_value = data.draw(
             st.one_of(
@@ -158,25 +162,26 @@ class TestAttrs:
         with pt.raises(ValidationError):
             Attrs(expected).validate(instance)
 
-    @hp.given(instance=attrs(), data=st.data())
+    @hp.given(instance=attrs(min_items=1), data=st.data())
     def test_validates_with_type_match(
         self, instance: dict, data: st.DataObject
     ):
         """Should pass if the instance contains the specified key-type pair."""
-        hp.assume(len(instance) > 0)
         key, value = next(iter(instance.items()))
         expected = [Attr(key, value=type(value))]
         Attrs(expected).validate(instance)
 
-    @hp.given(instance=attrs(), data=st.data())
+    @hp.given(instance=attrs(min_items=1), data=st.data())
     def test_invalidates_with_type_mismatch(
         self, instance: dict, data: st.DataObject
     ):
         """Should fail if the instance does not contain the specified key-type pair."""
-        hp.assume(len(instance) > 0)
         key, value = next(iter(instance.items()))
         expected_type = data.draw(st.sampled_from([int, str, bool]))
         hp.assume(type(value) is not expected_type)
+        if isinstance(value, (int, float)):
+            # JSON Schema considers numbers like 1 and 1.0 both integers...
+            hp.assume(value != expected_type(value))
         expected = [Attr(key, value=expected_type)]
         with pt.raises(ValidationError):
             Attrs(expected).validate(instance)
