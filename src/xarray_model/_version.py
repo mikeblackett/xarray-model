@@ -1,3 +1,3 @@
 from importlib import metadata
 
-version = metadata.version('xarray_validate')
+version = metadata.version('xarray_model')
