@@ -3,7 +3,7 @@ API
 
 .. autosummary::
    :toctree: generated
-   xarray-model
+   xarray_model
 
 .. automodule:: xarray_model
     :autosummary:
