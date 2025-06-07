@@ -1,16 +1,17 @@
 xarray-model
 ===================================
 
-A JSON Schema validation library for xarray objects.
+A JSON Schema powered validation library for xarray objects.
 
 .. note::
 
-   This project is under active development.
+   This project is under active development. Frequent and breaking changes are expected.
 
 Contents
 --------
 
 .. toctree::
+   :maxdepth: 2
 
    usage
    api

@@ -13,11 +13,12 @@ version = '0.0.0'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.duration',
-    'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
+    'sphinx.ext.doctest',
+    'sphinx.ext.duration',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.napoleon',
 ]
 
 source_suffix = ['.rst', '.md']
@@ -34,3 +35,4 @@ intersphinx_mapping = {
 html_baseurl = os.environ.get('READTHEDOCS_CANONICAL_URL', '/')
 html_static_path = ['_static']
 html_title = 'xarray-model'
+html_theme = 'pydata_sphinx_theme'
